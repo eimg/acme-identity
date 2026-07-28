@@ -30,31 +30,61 @@ Acme Identity resolves **who is acting** (human user, service token, or dev prin
 | `email` | Optional email (empty for service principals) |
 | `roles` | Suite role slugs assigned to this principal |
 | `permissions` | Flattened permission strings from all roles (`*` = all) |
-| `kind` | `user` (interactive), `service` (Bearer token), `dev` (`off` mode admin) |
+| `kind` | `user` (interactive), `service` (Bearer token), `dev` (`off` mode principal) |
 | `authMode` | `off` or `local` — how this principal was resolved |
+
+### Compatibility rule
+
+Changes to this contract are **additive only**, and consumers must **ignore fields they do not know** rather than validating exhaustively. That is what lets identity add a field without a coordinated release across five apps. `schemaVersion` only changes if an existing field changes meaning.
 
 ## Resolution
 
 | Transport | Use |
 |---|---|
 | HttpOnly cookie `acme_identity_session` | Browser UI sessions after `POST /api/session` |
-| `Authorization: Bearer <token>` | Service tokens (`svc_…`) or session id for API clients |
+| `Authorization: Bearer svc_…` | Service tokens |
+| `Authorization: Bearer sess_…` | Session id for API clients that cannot hold cookies |
 | `GET /api/principal` | Canonical lookup for sibling apps |
-| `POST /api/introspect` `{ "token": "…" }` | Token validation without forwarding cookies |
+| `POST /api/introspect` `{ "token": "…" }` | Token validation without forwarding cookies. **Requires the caller to authenticate** with `identity.read` |
+
+Resolution is a couple of indexed SQLite reads, with no key-derivation work on the request path, so calling `/api/principal` per request is the intended pattern. Do not cache principals in consumers: a revoked token or a disabled user must take effect immediately.
 
 ## Permission checks in consumers
 
+Do not reimplement matching. Import it:
+
 ```ts
-function hasPermission(principal: Principal, permission: string): boolean {
-  return (
-    principal.permissions.includes("*") ||
-    principal.roles.includes("admin") ||
-    principal.permissions.includes(permission)
-  );
+import { hasPermission, hasAnyPermission } from "acme-identity/client";
+
+if (!hasPermission(principal, "prelude.export")) return res.status(403).json({ error: "forbidden" });
+```
+
+Grant forms, narrowest to widest:
+
+| Grant | Matches |
+|---|---|
+| `prelude.write` | exactly `prelude.write` |
+| `prelude.*` | every key in the `prelude` namespace, including nested (`primer.evidence.read` for `primer.*`) |
+| `*` | everything; held by the builtin `admin` role |
+
+`hasRole` is **exact** membership with no implicit admin bypass, so a role check and a permission check never disagree about the same principal. The `admin` role holds `*` and its permission set is pinned, so admins still pass every permission check. Prefer **permission strings** over role slugs: roles are manageable, permissions are the stable gate vocabulary.
+
+Consumers should surface a missing permission as **403** and an unresolvable principal as **401** — except when identity itself is unreachable, which is **503**:
+
+```ts
+import { IdentityClientError, resolvePrincipal } from "acme-identity/client";
+
+try {
+  const principal = await resolvePrincipal({ cookie: req.headers.cookie });
+} catch (error) {
+  if (error instanceof IdentityClientError && error.code === "unavailable") {
+    return res.status(503).json({ error: "Identity unavailable" });
+  }
+  return res.status(401).json({ error: "Authentication required" });
 }
 ```
 
-Prefer **permission strings** (`prelude.write`, `issues.read`) over hard-coding role slugs in route handlers. Roles are manageable; permissions are the stable gate vocabulary.
+Treating an outage as "signed out" would show every user a login screen they cannot complete.
 
 ## What identity does not own
 
@@ -65,4 +95,4 @@ Prefer **permission strings** (`prelude.write`, `issues.read`) over hard-coding 
 
 ## Future adapters
 
-A third-party IdP should still emit `acme.principal.v1`. Map external `sub` + group claims into suite `roles` / `permissions` in one adapter layer; do not leak IdP-specific types into product code.
+A third-party IdP should still emit `acme.principal.v1`. Map external `sub` + group claims into suite `roles` / `permissions` in one adapter layer; do not leak IdP-specific types into product code. Because consumers only ever see this shape and only ever call `resolvePrincipal`, swapping the local login adapter for OIDC should not touch product route handlers.

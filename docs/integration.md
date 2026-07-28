@@ -19,27 +19,42 @@ Workflow apps must **not** depend on Primer for login. Primer consumes identity 
 | `off` | requires `ACME_ALLOW_INSECURE=1` or test/dev | `ACME_AUTH_MODE=off` (unset) | Feature tests, local work without sign-in |
 | `local` | yes for identity server | set explicitly | Multi-user / role enforcement |
 
-In **`off`**, every unresolved caller is treated as admin (`kind: "dev"`, `sub: "dev:admin"`). Sibling apps should still call the identity port so flipping to `local` does not require rewriting handlers.
+In **`off`**, an anonymous caller is treated as admin (`kind: "dev"`, `sub: "dev:admin"`). The consumer helper answers this **without a network call**, so a sibling app's feature tests never need identity running. A caller that presents a real credential is still resolved against identity, so role behaviour can be exercised in either mode.
 
 ## Consumer integration pattern
 
 1. Add dependency on `acme-identity` (path, npm link, or copy `src/client.ts` patterns).
 2. Resolve principal once per request via `resolvePrincipal()`.
 3. Attach principal to `res.locals` (or equivalent).
-4. Gate routes with **permissions**, not role names, where possible.
+4. Gate routes with **permissions** using the exported matchers — do not reimplement matching.
 5. Keep existing tests on `ACME_AUTH_MODE=off`; add a separate auth test file for `local`.
 
 ```ts
 import {
-  bearerFromRequest,
-  defaultConsumerAuthMode,
+  hasPermission,
+  IdentityClientError,
   resolvePrincipal,
 } from "acme-identity/client";
 
-const principal = await resolvePrincipal({
-  authMode: defaultConsumerAuthMode(),
-  authorization: req.headers.authorization,
-  cookie: req.headers.cookie,
+app.use(async (req, res, next) => {
+  try {
+    res.locals.principal = await resolvePrincipal({
+      authorization: req.headers.authorization,
+      cookie: req.headers.cookie,
+    });
+    next();
+  } catch (error) {
+    const unavailable =
+      error instanceof IdentityClientError && error.code === "unavailable";
+    res.status(unavailable ? 503 : 401).json({ error: (error as Error).message });
+  }
+});
+
+app.post("/api/inceptions", (req, res) => {
+  if (!hasPermission(res.locals.principal, "prelude.write")) {
+    return res.status(403).json({ error: "Missing permission: prelude.write" });
+  }
+  // …
 });
 ```
 
@@ -50,26 +65,40 @@ Environment:
 | `ACME_AUTH_MODE` | `off` (consumers) / `local` (identity server) | Auth adapter selection |
 | `ACME_IDENTITY_URL` | `http://127.0.0.1:8317` | Identity base URL |
 | `ACME_ALLOW_INSECURE` | unset | Required for identity server `off` mode outside test |
+| `ACME_DEV_PRINCIPAL` | `admin` | Off mode: which seeded user anonymous callers resolve as |
 
-## Permission vocabulary (seeded)
+## Testing role gates without passwords
 
-Permissions use `<product>.<action>`. Products may define finer gates locally; add new permission strings here when introducing new suite capabilities.
+In `off` mode, `x-acme-dev-user: <username>` resolves as that seeded user, keeping their real roles and permissions with `kind: "dev"`. This is how a consumer asserts 403s in the mode its feature tests already run in:
+
+```ts
+// In the consumer's own tests
+const viewer = await resolvePrincipal({ authMode: "off", devUser: "viewer" });
+```
+
+An unknown name is a **400**, not a fallback to admin — a typo must not turn into a test that passes for the wrong reason. Set `ACME_DEV_PRINCIPAL` to change the default for a whole process.
+
+The header is ignored in `local` mode.
+
+## Permission vocabulary
+
+Permissions use `<product>.<action>`, with `<product>.*` for a whole namespace and `*` for everything. The authoritative list is served from **`GET /api/meta`** (`permissions[]`) and defined in `src/seed.ts`; the manage UI renders it as a picker. Add new suite capabilities there.
 
 | Permission | Typical use |
 |---|---|
-| `identity.read` | List users/roles (non-admin read) |
-| `identity.admin` | Manage users, roles, tokens (admin role also grants via `*`) |
+| `identity.read` | List users/roles, introspect tokens |
+| `identity.admin` | Manage users, roles, tokens (the `admin` role grants it via `*`) |
 | `prelude.read` | View inceptions |
 | `prelude.write` | Edit inceptions, documents, discussions |
-| `prelude.export` | Export bootstrap artifacts (admin-only in Prelude rollout) |
-| `prelude.discuss` | Participate in discussions (non-viewer) |
-| `prelude.context` | Mark discussion topics include-in-context (admin-only in Prelude rollout) |
+| `prelude.export` | Export bootstrap artifacts |
+| `prelude.discuss` | Participate in discussions |
+| `prelude.context` | Mark discussion topics include-in-context |
 | `helix.read` / `helix.trigger` / `helix.merge` | Helix surfaces |
 | `issues.read` / `issues.write` | Acme Issues |
 | `projects.read` / `projects.write` | Acme Projects |
 | `primer.ask` | Primer grounded chat (ACL still enforced inside Primer) |
 
-Custom roles (e.g. future `dev`, `pm`) are created in the manage UI by assigning permission subsets — no code change required if gates use permission strings.
+Products may gate on keys not in this list (`primer.evidence.read`); they are accepted as long as they match the shape. Custom roles (`dev`, `pm`, …) are created in the manage UI by assigning permission subsets — no code change required if gates use permission strings.
 
 ## Rollout order (planned)
 
@@ -83,9 +112,21 @@ When integrating an app, update that app's `AGENTS.md` related-projects table to
 
 ## Machine / webhook auth
 
-Browser sessions are for humans. Service-to-service edges (Issues ↔ Helix ↔ Projects) should use **service tokens** minted in the identity manage UI, passed as `Authorization: Bearer svc_…`.
+Browser sessions are for humans. Service-to-service edges (Issues ↔ Helix ↔ Projects) should use **service tokens** minted in the manage UI or with `acme-identity mint-token`, passed as `Authorization: Bearer svc_…`. Tokens can carry an expiry; a token is shown once at creation and stored only as a digest.
 
 Webhook HMAC remains per-link configuration until a suite-wide machine-auth pass lands. Do not authenticate webhooks with browser cookies.
+
+## Calling identity from a browser
+
+Identity does **not** send CORS headers by default, because the normal pattern is server-side resolution. Cross-origin **writes are rejected** even though `SameSite=Lax` would attach the cookie: every suite app is on another port of the same host, so `localhost:8321` is same-site with `localhost:8317` and would otherwise be able to drive authenticated writes.
+
+To call identity directly from a sibling app's frontend, list its origin:
+
+```bash
+ACME_IDENTITY_ALLOWED_ORIGINS=http://localhost:8321,http://localhost:8319
+```
+
+That enables credentialed CORS for those origins and exempts them from the write guard.
 
 ## Local ports (reference)
 
@@ -108,4 +149,4 @@ ACME_AUTH_MODE=local npm run dev
 ACME_AUTH_MODE=local ACME_IDENTITY_URL=http://127.0.0.1:8317 npm run dev
 ```
 
-Run consumer feature tests with `ACME_AUTH_MODE=off` (default). Add auth-specific tests that sign in as `viewer` / `member` / `admin` and assert 403/200 on gated routes.
+Run consumer feature tests with `ACME_AUTH_MODE=off` (default). Add auth-specific tests that resolve as `viewer` / `member` / `admin` and assert 403/200 on gated routes — with `devUser` in off mode, or real sign-in in `local`.

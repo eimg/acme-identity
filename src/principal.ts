@@ -3,6 +3,19 @@ import { getUserByUsername, permissionsForRoles } from "./store.js";
 import type { AuthMode, Principal, User } from "./types.js";
 import { ISSUER } from "./types.js";
 
+export {
+  grants,
+  hasAllPermissions,
+  hasAnyPermission,
+  hasPermission,
+  hasRole,
+  isSuiteAdmin,
+} from "./permissions.js";
+
+export class UnknownDevUserError extends Error {
+  readonly status = 400;
+}
+
 export function principalFromUser(
   db: Database.Database,
   user: User,
@@ -68,12 +81,21 @@ export function devAdminPrincipal(db: Database.Database, _authMode: AuthMode = "
   };
 }
 
-export function hasPermission(principal: Principal, permission: string): boolean {
-  if (principal.permissions.includes("*")) return true;
-  if (principal.roles.includes("admin")) return true;
-  return principal.permissions.includes(permission);
-}
-
-export function hasRole(principal: Principal, role: string): boolean {
-  return principal.roles.includes(role) || principal.roles.includes("admin");
+/**
+ * Off-mode principal for a named seeded user, so sibling apps can exercise
+ * viewer/member/operator gates in their default test mode without passwords.
+ * Unknown names throw rather than silently falling back to admin, which would
+ * turn a typo into a test that passes for the wrong reason.
+ */
+export function devPrincipalFor(db: Database.Database, username: string): Principal {
+  const wanted = username.trim();
+  if (!wanted || wanted === "admin") return devAdminPrincipal(db);
+  const user = getUserByUsername(db, wanted);
+  if (!user) throw new UnknownDevUserError(`Unknown dev principal: ${wanted}`);
+  return {
+    ...principalFromUser(db, user, "off"),
+    kind: "dev",
+    sub: `dev:${user.username}`,
+    authMode: "off",
+  };
 }

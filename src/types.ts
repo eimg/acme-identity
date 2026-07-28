@@ -2,6 +2,9 @@ export const DEFAULT_PORT = 8317;
 export const ISSUER = "acme-identity";
 export const SESSION_COOKIE = "acme_identity_session";
 
+/** Off-mode only: pick which seeded user anonymous callers resolve as. */
+export const DEV_USER_HEADER = "x-acme-dev-user";
+
 /** Consumer / server auth mode. `off` resolves every caller as admin for local testing. */
 export type AuthMode = "off" | "local";
 
@@ -15,6 +18,8 @@ export interface Role {
   description: string;
   permissions: string[];
   builtin: boolean;
+  /** Builtin roles whose permission set is fixed (today: `admin`), to prevent lockout. */
+  permissionsLocked: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -30,7 +35,12 @@ export interface User {
   updatedAt: number;
 }
 
-/** Stable principal contract for sibling apps (OIDC-shaped, local issuer today). */
+/**
+ * Stable principal contract for sibling apps (OIDC-shaped, local issuer today).
+ *
+ * Additive changes only: consumers must ignore unknown fields rather than
+ * validating exhaustively, so new fields never need a coordinated release.
+ */
 export interface Principal {
   schemaVersion: "acme.principal.v1";
   sub: string;
@@ -58,8 +68,15 @@ export interface ServiceToken {
   roleSlugs: string[];
   createdAt: number;
   lastUsedAt: number | null;
+  expiresAt: number | null;
   /** Present only at creation time. */
   token?: string;
+}
+
+export interface PermissionInfo {
+  key: string;
+  product: string;
+  description: string;
 }
 
 export interface IdentityMeta {
@@ -67,5 +84,9 @@ export interface IdentityMeta {
   issuer: string;
   authMode: AuthMode;
   defaultDevPrincipal: "admin";
+  sessionCookie: string;
+  devUserHeader: string;
   roles: Array<{ slug: string; name: string; builtin: boolean }>;
+  /** Suggested gate vocabulary. Products may use keys not listed here. */
+  permissions: PermissionInfo[];
 }

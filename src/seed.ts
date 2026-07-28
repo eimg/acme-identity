@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
-import { hashPassword } from "./passwords.js";
+import { hashPassword, verifyPassword } from "./passwords.js";
+import type { PermissionInfo } from "./types.js";
 
 interface SeedRole {
   slug: string;
@@ -15,6 +16,12 @@ interface SeedUser {
   password: string;
   roles: string[];
 }
+
+/**
+ * Builtin roles whose permissions cannot be edited. Editing `admin` away from
+ * `*` would leave nobody able to manage identity, so it stays pinned.
+ */
+export const PERMISSION_LOCKED_ROLES = new Set(["admin"]);
 
 export const BUILTIN_ROLES: SeedRole[] = [
   {
@@ -64,6 +71,46 @@ export const BUILTIN_ROLES: SeedRole[] = [
   },
 ];
 
+/**
+ * Suite gate vocabulary, served from `/api/meta` so the manage UI and all five
+ * consumers pick permissions from one list instead of retyping strings. Products
+ * may still gate on keys that are not listed here.
+ */
+export const PERMISSION_VOCABULARY: PermissionInfo[] = [
+  { key: "*", product: "suite", description: "Everything (builtin admin role)" },
+  { key: "identity.read", product: "identity", description: "List users and roles" },
+  {
+    key: "identity.admin",
+    product: "identity",
+    description: "Manage users, roles, and service tokens",
+  },
+  { key: "prelude.read", product: "prelude", description: "View inceptions" },
+  {
+    key: "prelude.write",
+    product: "prelude",
+    description: "Edit inceptions, documents, discussions",
+  },
+  { key: "prelude.export", product: "prelude", description: "Export bootstrap artifacts" },
+  { key: "prelude.discuss", product: "prelude", description: "Participate in discussions" },
+  {
+    key: "prelude.context",
+    product: "prelude",
+    description: "Mark discussion topics include-in-context",
+  },
+  { key: "helix.read", product: "helix", description: "View workflows and runs" },
+  { key: "helix.trigger", product: "helix", description: "Trigger runs" },
+  { key: "helix.merge", product: "helix", description: "Merge implementation output" },
+  { key: "issues.read", product: "issues", description: "View issues and local PRs" },
+  { key: "issues.write", product: "issues", description: "Create and edit issues and PRs" },
+  { key: "projects.read", product: "projects", description: "View the feature board" },
+  { key: "projects.write", product: "projects", description: "Edit the feature board" },
+  {
+    key: "primer.ask",
+    product: "primer",
+    description: "Grounded chat (evidence ACL still enforced in Primer)",
+  },
+];
+
 /** Local seed accounts — passwords are intentional for local-first development. */
 export const BUILTIN_USERS: SeedUser[] = [
   {
@@ -100,6 +147,7 @@ export function seedIfEmpty(db: Database.Database): void {
   const roleCount = db.prepare(`SELECT COUNT(*) AS n FROM roles`).get() as { n: number };
   if (roleCount.n > 0) return;
 
+  const adminPassword = process.env.ACME_IDENTITY_ADMIN_PASSWORD?.trim();
   const now = Date.now();
   const insertRole = db.prepare(`
     INSERT INTO roles (slug, name, description, permissions_json, builtin, created_at, updated_at)
@@ -126,11 +174,13 @@ export function seedIfEmpty(db: Database.Database): void {
       roleIdBySlug.set(role.slug, Number(result.lastInsertRowid));
     }
     for (const user of BUILTIN_USERS) {
+      const password =
+        user.username === "admin" && adminPassword ? adminPassword : user.password;
       const result = insertUser.run({
         username: user.username,
         displayName: user.displayName,
         email: user.email,
-        passwordHash: hashPassword(user.password),
+        passwordHash: hashPassword(password),
         now,
       });
       const userId = Number(result.lastInsertRowid);
@@ -142,4 +192,12 @@ export function seedIfEmpty(db: Database.Database): void {
     }
   });
   tx();
+}
+
+/** True while the admin account still has its well-known development password. */
+export function usingSeedAdminPassword(db: Database.Database): boolean {
+  const row = db
+    .prepare(`SELECT password_hash AS hash FROM users WHERE username = 'admin' COLLATE NOCASE`)
+    .get() as { hash: string } | undefined;
+  return row ? verifyPassword("admin", row.hash) : false;
 }

@@ -220,7 +220,16 @@ code, .mono {
   font-weight: 600;
 }
 
-.row-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.perm-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.perm-product {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+fieldset:disabled .chip { cursor: default; opacity: 0.6; }
+
+.row-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
 
 .button {
   appearance: none;
