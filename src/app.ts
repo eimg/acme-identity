@@ -17,7 +17,6 @@ import {
 import { assertInsecureModeAllowed, resolveAuthMode } from "./mode.js";
 import { hasPermission } from "./permissions.js";
 import {
-  UnknownDevUserError,
   devAdminPrincipal,
   devPrincipalFor,
   principalFromService,
@@ -25,7 +24,6 @@ import {
 } from "./principal.js";
 import { PERMISSION_VOCABULARY, usingSeedAdminPassword } from "./seed.js";
 import {
-  StoreError,
   authenticateUser,
   countSessionsForUser,
   createRole,
