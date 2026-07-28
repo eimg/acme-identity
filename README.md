@@ -2,7 +2,22 @@
 
 Thin local identity layer for the Acme suite: users, manageable roles, sessions, service tokens, and a stable principal contract sibling apps can resolve.
 
-**Default port:** [http://127.0.0.1:8317](http://127.0.0.1:8317)
+**Default port:** [http://127.0.0.1:8317](http://127.0.0.1:8317) · **Repo:** [github.com/eimg/acme-identity](https://github.com/eimg/acme-identity)
+
+## Acme development testbed
+
+Acme Identity is a cross-cutting service. Workflow and knowledge apps consume it; it does not sit on the Prelude → Helix → Issues → Projects runtime path.
+
+| Project | Role |
+|---|---|
+| **[Acme Identity](https://github.com/eimg/acme-identity)** | Suite auth: users, roles, sessions, service tokens, `acme.principal.v1` |
+| **[Prelude](https://github.com/eimg/prelude)** | Project inception; first planned consumer |
+| **[Helix](https://github.com/eimg/helix)** | Agent workflow control plane |
+| **[Acme Issues](https://github.com/eimg/acme-issues)** | Issue and local PR lifecycle |
+| **[Acme Projects](https://github.com/eimg/acme-projects)** | Feature-idea board |
+| **[Primer](https://github.com/eimg/primer)** | Knowledge product; integrate **last** (groups/ACL stay in Primer) |
+
+See [`docs/integration.md`](./docs/integration.md) for consumer wiring and rollout order.
 
 ## Auth modes
 
@@ -69,7 +84,7 @@ ACME_AUTH_MODE=off ACME_ALLOW_INSECURE=1 npm run dev
 | `GET/POST` | `/api/tokens` | List / mint service tokens |
 | `DELETE` | `/api/tokens/:id` | Revoke |
 
-Principal contract: `acme.principal.v1` (`sub`, `iss`, `roles`, `permissions`, `kind`, `authMode`).
+Principal contract: `acme.principal.v1` — see [`docs/principal-contract.md`](./docs/principal-contract.md).
 
 ## Consumer helper
 
@@ -84,6 +99,14 @@ const principal = await resolvePrincipal({
 ```
 
 In `off` mode the helper returns admin even if identity is unreachable.
+
+## Documentation
+
+| Doc | Contents |
+|---|---|
+| [`AGENTS.md`](./AGENTS.md) | Agent working rules and module map |
+| [`docs/integration.md`](./docs/integration.md) | Sibling app integration, permissions, rollout |
+| [`docs/principal-contract.md`](./docs/principal-contract.md) | `acme.principal.v1` reference |
 
 ## Scripts
 
