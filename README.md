@@ -23,10 +23,16 @@ See [`docs/integration.md`](./docs/integration.md) for consumer wiring and rollo
 
 | Mode | Env | Behavior |
 |---|---|---|
-| `off` | `ACME_AUTH_MODE=off` | Every caller resolves as **admin** (dev principal). Use for feature tests across Prelude / Helix / Issues / Projects / Primer without signing in. Requires `ACME_ALLOW_INSECURE=1`, `ACME_IDENTITY_DEV=1`, or `NODE_ENV=test`. |
+| `off` | `ACME_AUTH_MODE=off` | Callers resolve as **admin** (dev principal). Use for feature tests across Prelude / Helix / Issues / Projects / Primer without signing in. Requires `ACME_ALLOW_INSECURE=1`, `ACME_IDENTITY_DEV=1`, or `NODE_ENV=test`. |
 | `local` | `ACME_AUTH_MODE=local` (server default) | Real username/password sessions and Bearer service tokens. |
 
-Sibling apps should default consumers to `off` so local feature work stays unblocked; flip to `local` when exercising multi-user behavior.
+Sibling apps should default consumers to `off` so local feature work stays unblocked; flip to `local` when exercising multi-user behavior. In `off` mode the consumer helper answers anonymous callers locally, so sibling tests do not need identity running at all.
+
+To exercise a non-admin gate while still in `off` mode, name a seeded user:
+
+```bash
+curl -H 'x-acme-dev-user: viewer' http://127.0.0.1:8317/api/principal
+```
 
 ## Seeded roles
 
@@ -37,7 +43,9 @@ Sibling apps should default consumers to `off` so local feature work stays unblo
 | `member` | Write inception/issues/boards; Primer ask |
 | `viewer` | Read-only |
 
-Roles are editable (permissions/name/description). Builtin roles cannot be deleted. Custom roles can be created in the manage UI.
+Roles are editable (permissions/name/description). Builtin roles cannot be deleted, and the `admin` role keeps `*` so identity can never be locked out. Custom roles are created in the manage UI by picking permissions from the vocabulary published at `/api/meta`.
+
+Permissions match exactly (`prelude.write`), by namespace (`prelude.*`), or globally (`*`).
 
 ## Seeded users
 
@@ -47,6 +55,8 @@ Password equals username for local development:
 - `operator` / `operator`
 - `member` / `member`
 - `viewer` / `viewer`
+
+Set `ACME_IDENTITY_ADMIN_PASSWORD` before the first run to seed a real admin password, or run `acme-identity set-password admin` later. See [`docs/operations.md`](./docs/operations.md) before binding to anything but loopback.
 
 ## Quick start
 
@@ -71,34 +81,39 @@ ACME_AUTH_MODE=off ACME_ALLOW_INSECURE=1 npm run dev
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/api/health` | Liveness + mode |
-| `GET` | `/api/meta` | Issuer, mode, role catalog |
-| `POST` | `/api/session` | Login `{ username, password }` → HttpOnly cookie |
+| `GET` | `/api/meta` | Issuer, mode, role catalog, permission vocabulary, cookie name |
+| `POST` | `/api/session` | Login `{ username, password }` → HttpOnly cookie (throttled) |
 | `GET` | `/api/session` | Current principal / user |
 | `DELETE` | `/api/session` | Sign out |
+| `POST` | `/api/session/password` | Self-service `{ currentPassword, newPassword }`; revokes all sessions |
 | `GET` | `/api/principal` | Resolve principal (cookie or `Authorization: Bearer`) |
-| `POST` | `/api/introspect` | `{ token }` → `{ active, principal? }` |
+| `POST` | `/api/introspect` | `{ token }` → `{ active, principal? }`; needs `identity.read` |
 | `GET/POST` | `/api/roles` | List / create roles |
 | `PATCH/DELETE` | `/api/roles/:id` | Update / delete (non-builtin) |
 | `GET/POST` | `/api/users` | List / create users |
 | `GET/PATCH/DELETE` | `/api/users/:id` | Read / update / delete |
-| `GET/POST` | `/api/tokens` | List / mint service tokens |
+| `GET/DELETE` | `/api/users/:id/sessions` | Count / revoke a user's sessions |
+| `GET/POST` | `/api/tokens` | List / mint service tokens (optional `expiresInDays`) |
 | `DELETE` | `/api/tokens/:id` | Revoke |
+
+Every `/api` response is JSON, including 404s and unexpected errors, so consumers never have to parse an HTML error page. Cross-origin writes are rejected unless the origin is in `ACME_IDENTITY_ALLOWED_ORIGINS`.
 
 Principal contract: `acme.principal.v1` — see [`docs/principal-contract.md`](./docs/principal-contract.md).
 
 ## Consumer helper
 
 ```ts
-import { resolvePrincipal, defaultConsumerAuthMode } from "acme-identity/client";
+import { hasPermission, resolvePrincipal } from "acme-identity/client";
 
 const principal = await resolvePrincipal({
-  authMode: defaultConsumerAuthMode(), // defaults to off
   cookie: request.headers.cookie,
   authorization: request.headers.authorization,
 });
+
+if (!hasPermission(principal, "prelude.write")) throw new Error("forbidden");
 ```
 
-In `off` mode the helper returns admin even if identity is unreachable.
+In `off` mode the helper returns admin even if identity is unreachable. Gate on permissions using the exported matchers rather than reimplementing them — that is the one copy shared by all five consumers. `IdentityClientError.code` distinguishes `unauthenticated` (401) from `unavailable` (503), so an identity outage is never mistaken for a signed-out user.
 
 ## Documentation
 
@@ -107,6 +122,7 @@ In `off` mode the helper returns admin even if identity is unreachable.
 | [`AGENTS.md`](./AGENTS.md) | Agent working rules and module map |
 | [`docs/integration.md`](./docs/integration.md) | Sibling app integration, permissions, rollout |
 | [`docs/principal-contract.md`](./docs/principal-contract.md) | `acme.principal.v1` reference |
+| [`docs/operations.md`](./docs/operations.md) | Configuration, recovery, and known gaps |
 
 ## Scripts
 
@@ -116,6 +132,16 @@ npm test
 npm run verify    # typecheck, test, build
 ```
 
+## CLI
+
+```bash
+acme-identity serve [--port n] [--host h] [--mode off|local]
+acme-identity list-users
+acme-identity set-password <username>    # reads from stdin; recovery path
+acme-identity mint-token <name> <roles> [--expires-in-days n]
+acme-identity list-tokens
+```
+
 ## Data
 
-SQLite at `./data/identity.db` (override with `ACME_IDENTITY_DATA_DIR`).
+SQLite at `./data/identity.db` (override with `ACME_IDENTITY_DATA_DIR`). Schema upgrades apply on open from an append-only migration list keyed to `PRAGMA user_version`.
