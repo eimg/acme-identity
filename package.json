@@ -23,6 +23,7 @@
   "exports": {
     ".": "./dist/client.js",
     "./client": "./dist/client.js",
+    "./permissions": "./dist/permissions.js",
     "./types": "./dist/types.js"
   },
   "scripts": {

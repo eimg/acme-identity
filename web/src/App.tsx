@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { hasPermission } from "../../src/permissions";
 import type {
   IdentityMeta,
   Principal,
@@ -9,19 +10,18 @@ import type {
 } from "../../src/types";
 import { api, formatTime } from "./api";
 
-type Tab = "users" | "roles" | "tokens";
+type Tab = "users" | "roles" | "tokens" | "account";
 
 interface SessionResponse {
   principal: Principal;
   user: User | null;
 }
 
+const metaQuery = { queryKey: ["meta"], queryFn: () => api<IdentityMeta>("/api/meta") };
+
 export function App() {
   const queryClient = useQueryClient();
-  const meta = useQuery({
-    queryKey: ["meta"],
-    queryFn: () => api<IdentityMeta>("/api/meta"),
-  });
+  const meta = useQuery(metaQuery);
   const session = useQuery({
     queryKey: ["session"],
     queryFn: async () => {
@@ -41,12 +41,11 @@ export function App() {
     window.setTimeout(() => setToast(""), 2_800);
   };
 
-  const signedIn = Boolean(session.data?.principal);
+  const principal = session.data?.principal;
+  const signedIn = Boolean(principal);
   const isOff = meta.data?.authMode === "off";
-  const canManage =
-    isOff ||
-    session.data?.principal.roles.includes("admin") ||
-    session.data?.principal.permissions.includes("*");
+  // Gate on the permission, not the role slug, so custom roles work unchanged.
+  const canManage = Boolean(principal && hasPermission(principal, "identity.admin"));
 
   const signOut = useMutation({
     mutationFn: () => api<{ signedOut: boolean }>("/api/session", { method: "DELETE" }),
@@ -108,7 +107,7 @@ export function App() {
       )}
 
       <nav className="tabs">
-        {(["users", "roles", "tokens"] as Tab[]).map((item) => (
+        {(["users", "roles", "tokens", "account"] as Tab[]).map((item) => (
           <button
             key={item}
             type="button"
@@ -121,8 +120,12 @@ export function App() {
       </nav>
 
       <main className="content">
-        {!canManage ? (
-          <p className="muted">Admin role required to manage identity.</p>
+        {tab === "account" ? (
+          <AccountPanel principal={principal} onToast={showToast} />
+        ) : !canManage ? (
+          <p className="muted">
+            Managing identity needs the <code>identity.admin</code> permission.
+          </p>
         ) : tab === "users" ? (
           <UsersPanel onToast={showToast} />
         ) : tab === "roles" ? (
@@ -260,6 +263,13 @@ function UsersPanel({ onToast }: { onToast: (message: string) => void }) {
     onError: (error: Error) => onToast(error.message),
   });
 
+  const revokeSessions = useMutation({
+    mutationFn: (id: number) =>
+      api<{ revoked: number }>(`/api/users/${id}/sessions`, { method: "DELETE" }),
+    onSuccess: (result) => onToast(`Revoked ${result.revoked} session(s)`),
+    onError: (error: Error) => onToast(error.message),
+  });
+
   return (
     <div className="panel-grid">
       <section className="panel">
@@ -301,6 +311,13 @@ function UsersPanel({ onToast }: { onToast: (message: string) => void }) {
               <div className="row-actions">
                 <button type="button" className="button small" onClick={() => toggleActive.mutate(user)}>
                   {user.active ? "Disable" : "Enable"}
+                </button>
+                <button
+                  type="button"
+                  className="button small"
+                  onClick={() => revokeSessions.mutate(user.id)}
+                >
+                  Sign out
                 </button>
                 <button
                   type="button"
@@ -378,34 +395,194 @@ function UsersPanel({ onToast }: { onToast: (message: string) => void }) {
   );
 }
 
+/** Vocabulary published by /api/meta, so the UI and consumers share one list. */
+function PermissionPicker({
+  selected,
+  disabled,
+  onChange,
+}: {
+  selected: string[];
+  disabled?: boolean;
+  onChange: (next: string[]) => void;
+}) {
+  const meta = useQuery(metaQuery);
+  const vocabulary = meta.data?.permissions ?? [];
+  const groups = useMemo(() => {
+    const byProduct = new Map<string, typeof vocabulary>();
+    for (const entry of vocabulary) {
+      byProduct.set(entry.product, [...(byProduct.get(entry.product) ?? []), entry]);
+    }
+    return [...byProduct];
+  }, [vocabulary]);
+  const extras = selected.filter((key) => !vocabulary.some((entry) => entry.key === key));
+
+  const toggle = (key: string) =>
+    onChange(selected.includes(key) ? selected.filter((item) => item !== key) : [...selected, key]);
+
+  return (
+    <fieldset disabled={disabled}>
+      <legend>Permissions</legend>
+      {groups.map(([product, entries]) => (
+        <div key={product} className="perm-group">
+          <span className="perm-product">{product}</span>
+          <div className="chips">
+            {entries.map((entry) => (
+              <button
+                key={entry.key}
+                type="button"
+                title={entry.description}
+                disabled={disabled}
+                className={selected.includes(entry.key) ? "chip on" : "chip"}
+                onClick={() => toggle(entry.key)}
+              >
+                {entry.key}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {extras.length > 0 && (
+        <div className="perm-group">
+          <span className="perm-product">product-defined</span>
+          <div className="chips">
+            {extras.map((key) => (
+              <button
+                key={key}
+                type="button"
+                disabled={disabled}
+                className="chip on"
+                onClick={() => toggle(key)}
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <label>
+        Add a permission not listed above
+        <input
+          placeholder="product.action or product.*"
+          disabled={disabled}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            const value = event.currentTarget.value.trim().toLowerCase();
+            if (value && !selected.includes(value)) onChange([...selected, value]);
+            event.currentTarget.value = "";
+          }}
+        />
+      </label>
+    </fieldset>
+  );
+}
+
+function AccountPanel({
+  principal,
+  onToast,
+}: {
+  principal: Principal | undefined;
+  onToast: (message: string) => void;
+}) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+
+  const change = useMutation({
+    mutationFn: () =>
+      api("/api/session/password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      }),
+    onSuccess: () => {
+      setCurrentPassword("");
+      setNewPassword("");
+      onToast("Password changed — sign in again");
+      window.setTimeout(() => window.location.reload(), 1_200);
+    },
+    onError: (error: Error) => onToast(error.message),
+  });
+
+  return (
+    <div className="panel-grid">
+      <section className="panel">
+        <h2>Signed in as</h2>
+        <div className="table">
+          <article className="row">
+            <div>
+              <strong>{principal?.displayName ?? "Unknown"}</strong>
+              <span className="mono">{principal?.sub}</span>
+              <span className="perms">{principal?.permissions.join(", ") || "—"}</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2>Change password</h2>
+        {principal?.kind === "user" ? (
+          <form
+            className="stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              change.mutate();
+            }}
+          >
+            <label>
+              Current password
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <label>
+              New password
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+                required
+              />
+            </label>
+            <p className="muted">All sessions are signed out, including this one.</p>
+            <button className="button primary" type="submit" disabled={change.isPending}>
+              Change password
+            </button>
+          </form>
+        ) : (
+          <p className="muted">
+            Only interactive users have a password. This principal resolved as{" "}
+            <code>{principal?.kind}</code>.
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function RolesPanel({ onToast }: { onToast: (message: string) => void }) {
   const queryClient = useQueryClient();
   const roles = useQuery({ queryKey: ["roles"], queryFn: () => api<Role[]>("/api/roles") });
   const [slug, setSlug] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [permissionsText, setPermissionsText] = useState("identity.read");
+  const [permissions, setPermissions] = useState<string[]>(["identity.read"]);
   const [editing, setEditing] = useState<Role | null>(null);
 
   const create = useMutation({
     mutationFn: () =>
       api<Role>("/api/roles", {
         method: "POST",
-        body: JSON.stringify({
-          slug,
-          name,
-          description,
-          permissions: permissionsText
-            .split(/[\n,]/)
-            .map((item) => item.trim())
-            .filter(Boolean),
-        }),
+        body: JSON.stringify({ slug, name, description, permissions }),
       }),
     onSuccess: async () => {
       setSlug("");
       setName("");
       setDescription("");
-      setPermissionsText("identity.read");
+      setPermissions(["identity.read"]);
       await queryClient.invalidateQueries({ queryKey: ["roles"] });
       onToast("Role created");
     },
@@ -450,6 +627,7 @@ function RolesPanel({ onToast }: { onToast: (message: string) => void }) {
                 <strong>
                   {role.name} <span className="mono">{role.slug}</span>
                   {role.builtin && <em className="badge">builtin</em>}
+                  {role.permissionsLocked && <em className="badge">fixed permissions</em>}
                 </strong>
                 <span>{role.description}</span>
                 <span className="perms">{role.permissions.join(", ") || "—"}</span>
@@ -500,22 +678,17 @@ function RolesPanel({ onToast }: { onToast: (message: string) => void }) {
                 rows={3}
               />
             </label>
-            <label>
-              Permissions (comma or newline)
-              <textarea
-                value={editing.permissions.join("\n")}
-                onChange={(e) =>
-                  setEditing({
-                    ...editing,
-                    permissions: e.target.value
-                      .split(/[\n,]/)
-                      .map((item) => item.trim())
-                      .filter(Boolean),
-                  })
-                }
-                rows={6}
-              />
-            </label>
+            <PermissionPicker
+              selected={editing.permissions}
+              disabled={editing.permissionsLocked}
+              onChange={(next) => setEditing({ ...editing, permissions: next })}
+            />
+            {editing.permissionsLocked && (
+              <p className="muted">
+                The builtin <code>{editing.slug}</code> role keeps <code>*</code> so identity can
+                never be locked out. Name and description are still editable.
+              </p>
+            )}
             <div className="row-actions">
               <button className="button primary" type="submit">
                 Save
@@ -545,14 +718,7 @@ function RolesPanel({ onToast }: { onToast: (message: string) => void }) {
               Description
               <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
             </label>
-            <label>
-              Permissions
-              <textarea
-                value={permissionsText}
-                onChange={(e) => setPermissionsText(e.target.value)}
-                rows={5}
-              />
-            </label>
+            <PermissionPicker selected={permissions} onChange={setPermissions} />
             <button className="button primary" type="submit" disabled={create.isPending}>
               Create role
             </button>
@@ -580,6 +746,7 @@ function TokensPanel({
   const roles = useQuery({ queryKey: ["roles"], queryFn: () => api<Role[]>("/api/roles") });
   const [name, setName] = useState("");
   const [roleSlugs, setRoleSlugs] = useState<string[]>(["operator"]);
+  const [expiresInDays, setExpiresInDays] = useState("");
 
   const roleOptions = useMemo(() => roles.data ?? [], [roles.data]);
 
@@ -587,10 +754,15 @@ function TokensPanel({
     mutationFn: () =>
       api<ServiceToken>("/api/tokens", {
         method: "POST",
-        body: JSON.stringify({ name, roleSlugs }),
+        body: JSON.stringify({
+          name,
+          roleSlugs,
+          expiresInDays: expiresInDays ? Number(expiresInDays) : undefined,
+        }),
       }),
     onSuccess: async (token) => {
       setName("");
+      setExpiresInDays("");
       onCreatedToken(token.token ?? null);
       await queryClient.invalidateQueries({ queryKey: ["tokens"] });
       onToast("Service token created — copy it now");
@@ -634,6 +806,9 @@ function TokensPanel({
                 <span className="muted">
                   Created {formatTime(token.createdAt)}
                   {token.lastUsedAt ? ` · last used ${formatTime(token.lastUsedAt)}` : ""}
+                  {token.expiresAt
+                    ? ` · ${token.expiresAt < Date.now() ? "expired" : "expires"} ${formatTime(token.expiresAt)}`
+                    : " · no expiry"}
                 </span>
               </div>
               <button
@@ -663,6 +838,16 @@ function TokensPanel({
           <label>
             Name
             <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="helix-bot" />
+          </label>
+          <label>
+            Expires in days (blank = never)
+            <input
+              type="number"
+              min={1}
+              value={expiresInDays}
+              onChange={(e) => setExpiresInDays(e.target.value)}
+              placeholder="90"
+            />
           </label>
           <fieldset>
             <legend>Roles</legend>
