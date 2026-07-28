@@ -9,8 +9,8 @@ Acme Identity is the thin local identity layer for the Acme suite. It owns users
 | Project | Local path | Responsibility |
 |---|---|---|
 | Acme Identity | `~/Desktop/acme/acme-identity` | Users, roles, sessions, service tokens, principal resolution |
-| Primer | `~/Desktop/acme/primer` | Knowledge product; will resolve actors via identity (**integrate last**) |
-| Prelude | `~/Desktop/acme/prelude` | Inception drafting; **first** consumer of identity |
+| Primer | `~/Desktop/acme/primer` | Knowledge product; resolves Identity principals to Primer-owned actors and groups |
+| Prelude | `~/Desktop/acme/prelude` | Inception drafting; optional Identity adapter and delegated Primer auth |
 | Helix | `~/Desktop/acme/helix` | Workflow control plane; consumer of identity |
 | Acme Issues | `~/Desktop/acme/acme-issues` | Issues / local PRs; consumer of identity |
 | Acme Projects | `~/Desktop/acme/acme-projects` | Feature board; consumer of identity |
@@ -21,14 +21,14 @@ Acme Identity is the thin local identity layer for the Acme suite. It owns users
 - Do **not** own Primer evidence ACL / groups, Issues project membership rules, or Helix run policy — those stay in each product using the principal.
 - Keep a stable principal port (`sub`, `iss`, `roles`, `permissions`, `kind`, `authMode`) so a future OIDC adapter can replace the local login adapter. Contract changes are **additive only**.
 - Support `ACME_AUTH_MODE=off` so sibling feature tests default to an admin principal without credentials.
-- Machine edges use service tokens (Bearer), not browser cookies. Webhook HMAC stays per integration edge for now.
+- Machine edges use narrowly scoped service tokens (Bearer), not browser cookies. Calling products must bind those credentials to configured trusted destination origins; Identity owns principals and token lifecycle, not integration routing.
 
 ## Architecture
 
 - Node.js 20.19+, TypeScript, ESM.
 - Express serves a React/Vite manage UI.
 - SQLite at `data/identity.db` (`ACME_IDENTITY_DATA_DIR`), upgraded by an append-only migration list keyed to `PRAGMA user_version`.
-- Default port **8317**.
+- Default port **8316**.
 - `node:crypto` only, no extra auth libraries. Passwords use `scrypt`; service tokens are 384-bit random values stored as an unsalted SHA-256 digest, so resolving one is a single indexed lookup with no KDF work on the request path.
 
 ## Key modules

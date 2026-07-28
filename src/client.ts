@@ -75,7 +75,7 @@ export function defaultConsumerAuthMode(): AuthMode {
 }
 
 export function identityBaseUrl(
-  raw = process.env.ACME_IDENTITY_URL ?? "http://127.0.0.1:8317",
+  raw = process.env.ACME_IDENTITY_URL ?? "http://127.0.0.1:8316",
 ): string {
   return raw.replace(/\/$/, "");
 }

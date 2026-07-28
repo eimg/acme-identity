@@ -101,6 +101,34 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 3,
+    up: (db) => {
+      const row = db
+        .prepare(`SELECT permissions_json FROM roles WHERE slug = 'operator' AND builtin = 1`)
+        .get() as { permissions_json: string } | undefined;
+      if (!row) return;
+      const permissions = JSON.parse(row.permissions_json) as string[];
+      for (const permission of ["helix.read", "helix.review", "helix.bootstrap"]) {
+        if (!permissions.includes(permission)) permissions.push(permission);
+      }
+      db.prepare(`UPDATE roles SET permissions_json = ?, updated_at = ? WHERE slug = 'operator'`)
+        .run(JSON.stringify(permissions), Date.now());
+    },
+  },
+  {
+    version: 4,
+    up: (db) => {
+      const row = db
+        .prepare(`SELECT permissions_json FROM roles WHERE slug = 'operator' AND builtin = 1`)
+        .get() as { permissions_json: string } | undefined;
+      if (!row) return;
+      const permissions = JSON.parse(row.permissions_json) as string[];
+      if (!permissions.includes("prelude.export")) permissions.push("prelude.export");
+      db.prepare(`UPDATE roles SET permissions_json = ?, updated_at = ? WHERE slug = 'operator'`)
+        .run(JSON.stringify(permissions), Date.now());
+    },
+  },
 ];
 
 function migrate(db: Database.Database): void {

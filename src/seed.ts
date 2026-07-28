@@ -37,11 +37,16 @@ export const BUILTIN_ROLES: SeedRole[] = [
     permissions: [
       "identity.read",
       "prelude.write",
+      "prelude.export",
+      "helix.read",
       "helix.trigger",
+      "helix.review",
       "helix.merge",
+      "helix.bootstrap",
       "issues.write",
       "projects.write",
       "primer.ask",
+      "primer.manage",
     ],
   },
   {
@@ -99,7 +104,11 @@ export const PERMISSION_VOCABULARY: PermissionInfo[] = [
   },
   { key: "helix.read", product: "helix", description: "View workflows and runs" },
   { key: "helix.trigger", product: "helix", description: "Trigger runs" },
+  { key: "helix.review", product: "helix", description: "Run independent PR reviews" },
   { key: "helix.merge", product: "helix", description: "Merge implementation output" },
+  { key: "helix.bootstrap", product: "helix", description: "Bootstrap a target repository" },
+  { key: "helix.manage", product: "helix", description: "Author Helix agents, skills, and workflows" },
+  { key: "helix.admin", product: "helix", description: "Administer Helix run history" },
   { key: "issues.read", product: "issues", description: "View issues and local PRs" },
   { key: "issues.write", product: "issues", description: "Create and edit issues and PRs" },
   { key: "projects.read", product: "projects", description: "View the feature board" },
@@ -108,6 +117,11 @@ export const PERMISSION_VOCABULARY: PermissionInfo[] = [
     key: "primer.ask",
     product: "primer",
     description: "Grounded chat (evidence ACL still enforced in Primer)",
+  },
+  {
+    key: "primer.manage",
+    product: "primer",
+    description: "Manage Primer actors, sources, synchronization, and evaluation",
   },
 ];
 
@@ -141,11 +155,23 @@ export const BUILTIN_USERS: SeedUser[] = [
     password: "viewer",
     roles: ["viewer"],
   },
+  { username: "maya.chen", displayName: "Maya Chen", email: "maya.chen@acme.test", password: "maya.chen", roles: ["member"] },
+  { username: "owen.park", displayName: "Owen Park", email: "owen.park@acme.test", password: "owen.park", roles: ["member"] },
+  { username: "priya.nair", displayName: "Priya Nair", email: "priya.nair@acme.test", password: "priya.nair", roles: ["operator"] },
+  { username: "lena.morales", displayName: "Lena Morales", email: "lena.morales@acme.test", password: "lena.morales", roles: ["member"] },
+  { username: "ana.silva", displayName: "Ana Silva", email: "ana.silva@acme.test", password: "ana.silva", roles: ["operator"] },
+  { username: "marcus.bell", displayName: "Marcus Bell", email: "marcus.bell@acme.test", password: "marcus.bell", roles: ["member"] },
+  { username: "eli.turner", displayName: "Eli Turner", email: "eli.turner@acme.test", password: "eli.turner", roles: ["member"] },
+  { username: "noah.price", displayName: "Noah Price", email: "noah.price@acme.test", password: "noah.price", roles: ["viewer"] },
+  { username: "samira.khan", displayName: "Samira Khan", email: "samira.khan@acme.test", password: "samira.khan", roles: ["member"] },
 ];
 
 export function seedIfEmpty(db: Database.Database): void {
   const roleCount = db.prepare(`SELECT COUNT(*) AS n FROM roles`).get() as { n: number };
-  if (roleCount.n > 0) return;
+  if (roleCount.n > 0) {
+    seedMissingPrimerActors(db);
+    return;
+  }
 
   const adminPassword = process.env.ACME_IDENTITY_ADMIN_PASSWORD?.trim();
   const now = Date.now();
@@ -192,6 +218,45 @@ export function seedIfEmpty(db: Database.Database): void {
     }
   });
   tx();
+}
+
+/** Add fixture-compatible human logins to existing local Identity databases without changing existing users or roles. */
+function seedMissingPrimerActors(db: Database.Database): void {
+  const operator = db.prepare("SELECT permissions_json FROM roles WHERE slug = 'operator'")
+    .get() as { permissions_json: string } | undefined;
+  if (operator) {
+    const permissions = JSON.parse(operator.permissions_json) as string[];
+    if (!permissions.includes("primer.manage")) {
+      db.prepare("UPDATE roles SET permissions_json = ?, updated_at = ? WHERE slug = 'operator'")
+        .run(JSON.stringify([...permissions, "primer.manage"]), Date.now());
+    }
+  }
+  const insertUser = db.prepare(`
+    INSERT INTO users (username, display_name, email, password_hash, active, created_at, updated_at)
+    VALUES (@username, @displayName, @email, @passwordHash, 1, @now, @now)
+  `);
+  const insertUserRole = db.prepare("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)");
+  const getRole = db.prepare("SELECT id FROM roles WHERE slug = ?") as Database.Statement<[string], { id: number }>;
+  const exists = db.prepare("SELECT 1 FROM users WHERE username = ? COLLATE NOCASE");
+  const fixtureUsers = BUILTIN_USERS.filter((user) => user.email.endsWith("@acme.test"));
+  db.transaction(() => {
+    for (const user of fixtureUsers) {
+      if (exists.get(user.username)) continue;
+      const now = Date.now();
+      const result = insertUser.run({
+        username: user.username,
+        displayName: user.displayName,
+        email: user.email,
+        passwordHash: hashPassword(user.password),
+        now,
+      });
+      for (const slug of user.roles) {
+        const role = getRole.get(slug);
+        if (!role) throw new Error(`Unknown seed role ${slug}`);
+        insertUserRole.run(Number(result.lastInsertRowid), role.id);
+      }
+    }
+  })();
 }
 
 /** True while the admin account still has its well-known development password. */

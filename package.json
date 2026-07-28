@@ -36,7 +36,8 @@
     "start": "node dist/cli.js serve",
     "test": "node --test --import tsx test/*.test.ts",
     "verify": "npm run typecheck && npm test && npm run build",
-    "audit": "npm audit"
+    "audit": "npm audit",
+    "provision:suite-auth": "tsx scripts/provision-suite-auth.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",

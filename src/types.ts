@@ -1,4 +1,4 @@
-export const DEFAULT_PORT = 8317;
+export const DEFAULT_PORT = 8316;
 export const ISSUER = "acme-identity";
 export const SESSION_COOKIE = "acme_identity_session";
 

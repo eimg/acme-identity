@@ -3,7 +3,7 @@
  *
  * The manage UI is cookie-authenticated and every sibling app runs on another
  * port of the same host, so `SameSite=Lax` alone does not stop a cross-origin
- * write from another local app: `localhost:8321` and `localhost:8317` are the
+ * write from another local app: `localhost:8318` and `localhost:8316` are the
  * same site. State-changing requests are therefore origin-checked, with an
  * explicit allowlist for consumers that legitimately call identity from a
  * browser on another port.
@@ -12,7 +12,7 @@ import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { DEV_USER_HEADER, SESSION_COOKIE } from "./types.js";
 
 export interface HttpConfig {
-  /** Origins allowed to make credentialed cross-origin calls, e.g. http://localhost:8321. */
+  /** Origins allowed to make credentialed cross-origin calls, e.g. http://localhost:8318. */
   allowedOrigins: string[];
   /** `auto` marks the cookie Secure only when the request arrived over https. */
   cookieSecure: boolean | "auto";

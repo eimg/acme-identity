@@ -1,6 +1,6 @@
 # Integrating sibling apps with Acme Identity
 
-**Status:** Acme Identity is shipped. Consumer integration is rolling out app-by-app. **Prelude is first**; Primer is intentionally **last** (its auth model is the most complex).
+**Status:** Acme Identity and the optional consumer adapters are shipped across Prelude, Helix, Acme Issues, Acme Projects, and Primer. Each product remains independently runnable with its standalone/off adapter.
 
 ## Suite placement
 
@@ -63,7 +63,7 @@ Environment:
 | Variable | Default | Role |
 |---|---|---|
 | `ACME_AUTH_MODE` | `off` (consumers) / `local` (identity server) | Auth adapter selection |
-| `ACME_IDENTITY_URL` | `http://127.0.0.1:8317` | Identity base URL |
+| `ACME_IDENTITY_URL` | `http://127.0.0.1:8316` | Identity base URL |
 | `ACME_ALLOW_INSECURE` | unset | Required for identity server `off` mode outside test |
 | `ACME_DEV_PRINCIPAL` | `admin` | Off mode: which seeded user anonymous callers resolve as |
 
@@ -93,37 +93,47 @@ Permissions use `<product>.<action>`, with `<product>.*` for a whole namespace a
 | `prelude.export` | Export bootstrap artifacts |
 | `prelude.discuss` | Participate in discussions |
 | `prelude.context` | Mark discussion topics include-in-context |
-| `helix.read` / `helix.trigger` / `helix.merge` | Helix surfaces |
+| `helix.read` / `helix.trigger` / `helix.review` | Helix run and PR-review surfaces |
+| `helix.merge` / `helix.bootstrap` | Helix merge and bootstrap actions |
+| `helix.manage` / `helix.admin` | Helix authoring and administration |
 | `issues.read` / `issues.write` | Acme Issues |
 | `projects.read` / `projects.write` | Acme Projects |
 | `primer.ask` | Primer grounded chat (ACL still enforced inside Primer) |
+| `primer.manage` | Primer actors, sources, synchronization, and evaluation |
 
 Products may gate on keys not in this list (`primer.evidence.read`); they are accepted as long as they match the shape. Custom roles (`dev`, `pm`, …) are created in the manage UI by assigning permission subsets — no code change required if gates use permission strings.
 
-## Rollout order (planned)
+## Current consumer status
 
-1. **Prelude** — first consumer; export/context/discussion gates
-2. **Helix** — run trigger / manage surfaces
-3. **Acme Issues** — issue/PR mutations; keep webhook HMAC separate
-4. **Acme Projects** — board writes
-5. **Primer** — last; map principal → fixture actor; groups stay in Primer
+1. **Prelude** — permission-gated authoring, discussion, context, and export surfaces; delegates the caller credential to trusted Primer origins only.
+2. **Helix** — replaceable human-auth adapter plus permission-gated run, review, merge, bootstrap, manage, and admin surfaces.
+3. **Acme Issues** — permission-gated issue/PR operations and scoped service-token callbacks with trusted-destination binding.
+4. **Acme Projects** — permission-gated board operations and scoped service-token wiring to Acme Issues.
+5. **Primer** — maps the resolved principal to an existing Primer actor; Identity gates operations, while Primer-owned groups and evidence ACLs continue to determine knowledge access.
 
 When integrating an app, update that app's `AGENTS.md` related-projects table to list Acme Identity.
 
 ## Machine / webhook auth
 
-Browser sessions are for humans. Service-to-service edges (Issues ↔ Helix ↔ Projects) should use **service tokens** minted in the manage UI or with `acme-identity mint-token`, passed as `Authorization: Bearer svc_…`. Tokens can carry an expiry; a token is shown once at creation and stored only as a digest.
+Browser sessions are for humans. Service-to-service edges use **service tokens**
+passed as `Authorization: Bearer svc_…`. Give every direction a narrow custom
+role, expiry, and separate token; do not reuse the human `operator` role. The
+local suite can provision and rotate all five edges with `npm run
+provision:suite-auth` from Acme Identity. Tokens are shown once and stored only
+as digests.
 
-Webhook HMAC remains per-link configuration until a suite-wide machine-auth pass lands. Do not authenticate webhooks with browser cookies.
+Consumers must bind each token to configured trusted destination origins before
+adding the header. A user-editable callback or integration URL must never decide
+where a service credential is sent. Do not authenticate webhooks with browser cookies.
 
 ## Calling identity from a browser
 
-Identity does **not** send CORS headers by default, because the normal pattern is server-side resolution. Cross-origin **writes are rejected** even though `SameSite=Lax` would attach the cookie: every suite app is on another port of the same host, so `localhost:8321` is same-site with `localhost:8317` and would otherwise be able to drive authenticated writes.
+Identity does **not** send CORS headers by default, because the normal pattern is server-side resolution. Cross-origin **writes are rejected** even though `SameSite=Lax` would attach the cookie: every suite app is on another port of the same host, so `localhost:8318` is same-site with `localhost:8316` and would otherwise be able to drive authenticated writes.
 
 To call identity directly from a sibling app's frontend, list its origin:
 
 ```bash
-ACME_IDENTITY_ALLOWED_ORIGINS=http://localhost:8321,http://localhost:8319
+ACME_IDENTITY_ALLOWED_ORIGINS=http://localhost:8318,http://localhost:8319
 ```
 
 That enables credentialed CORS for those origins and exempts them from the write guard.
@@ -132,12 +142,12 @@ That enables credentialed CORS for those origins and exempts them from the write
 
 | App | Port |
 |---|---|
-| Acme Identity | 8317 |
-| Primer | 8318 |
+| Acme Identity | 8316 |
+| Primer | 8317 |
+| Prelude | 8318 |
 | Helix | 8319 |
 | Acme Issues | 8320 |
-| Prelude | 8321 |
-| Acme Projects | 8330 |
+| Acme Projects | 8321 |
 
 ## Verify integration
 
@@ -146,7 +156,7 @@ That enables credentialed CORS for those origins and exempts them from the write
 ACME_AUTH_MODE=local npm run dev
 
 # Consumer in local mode
-ACME_AUTH_MODE=local ACME_IDENTITY_URL=http://127.0.0.1:8317 npm run dev
+ACME_AUTH_MODE=local ACME_IDENTITY_URL=http://127.0.0.1:8316 npm run dev
 ```
 
 Run consumer feature tests with `ACME_AUTH_MODE=off` (default). Add auth-specific tests that resolve as `viewer` / `member` / `admin` and assert 403/200 on gated routes — with `devUser` in off mode, or real sign-in in `local`.

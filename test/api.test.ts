@@ -9,6 +9,7 @@ import { openDatabase } from "../src/db.js";
 import { resolveHttpConfig } from "../src/http.js";
 import { localAdminFallback, resolveConsumerAuthMode } from "../src/client.js";
 import { DEV_USER_HEADER, SESSION_COOKIE } from "../src/types.js";
+import { seedIfEmpty } from "../src/seed.js";
 
 const http = resolveHttpConfig({} as NodeJS.ProcessEnv);
 
@@ -48,7 +49,24 @@ describe("acme-identity API", () => {
 
     const users = await request(off()).get("/api/users");
     assert.equal(users.status, 200);
-    assert.equal(users.body.length, 4);
+    assert.equal(users.body.length, 13);
+    assert.ok(users.body.some((user: { username: string; email: string }) =>
+      user.username === "maya.chen" && user.email === "maya.chen@acme.test"));
+  });
+
+  it("adds Primer actor accounts and the operator capability to an existing database", () => {
+    db.prepare("DELETE FROM users WHERE username = 'maya.chen'").run();
+    const operator = db.prepare("SELECT permissions_json FROM roles WHERE slug = 'operator'")
+      .get() as { permissions_json: string };
+    db.prepare("UPDATE roles SET permissions_json = ? WHERE slug = 'operator'")
+      .run(JSON.stringify((JSON.parse(operator.permissions_json) as string[]).filter((key) => key !== "primer.manage")));
+
+    seedIfEmpty(db);
+
+    assert.ok(db.prepare("SELECT 1 FROM users WHERE username = 'maya.chen'").get());
+    const updated = db.prepare("SELECT permissions_json FROM roles WHERE slug = 'operator'")
+      .get() as { permissions_json: string };
+    assert.ok((JSON.parse(updated.permissions_json) as string[]).includes("primer.manage"));
   });
 
   it("publishes the gate vocabulary and cookie name in meta", async () => {
@@ -59,6 +77,7 @@ describe("acme-identity API", () => {
     const keys = meta.body.permissions.map((entry: { key: string }) => entry.key);
     assert.ok(keys.includes("identity.admin"));
     assert.ok(keys.includes("prelude.write"));
+    assert.ok(keys.includes("primer.manage"));
   });
 
   it("resolves anonymous callers as admin when mode=off", async () => {
@@ -455,11 +474,11 @@ describe("cross-origin protection", () => {
   });
 
   it("blocks writes from another origin on the same host", async () => {
-    // localhost:8321 and localhost:8317 are same-site, so SameSite=Lax alone
+    // localhost:8318 and localhost:8316 are same-site, so SameSite=Lax alone
     // would still attach the session cookie to this request.
     const blocked = await request(createApp({ db, authMode: "off", http }))
       .post("/api/roles")
-      .set("Origin", "http://localhost:8321")
+      .set("Origin", "http://localhost:8318")
       .send({ slug: "sneaky", name: "Sneaky", permissions: ["*"] });
     assert.equal(blocked.status, 403);
     assert.match(blocked.body.error, /Cross-origin/);
@@ -470,18 +489,18 @@ describe("cross-origin protection", () => {
       db,
       authMode: "off",
       http: resolveHttpConfig({
-        ACME_IDENTITY_ALLOWED_ORIGINS: "http://localhost:8321",
+        ACME_IDENTITY_ALLOWED_ORIGINS: "http://localhost:8318",
       } as NodeJS.ProcessEnv),
     });
 
-    const read = await request(app).get("/api/principal").set("Origin", "http://localhost:8321");
+    const read = await request(app).get("/api/principal").set("Origin", "http://localhost:8318");
     assert.equal(read.status, 200);
-    assert.equal(read.headers["access-control-allow-origin"], "http://localhost:8321");
+    assert.equal(read.headers["access-control-allow-origin"], "http://localhost:8318");
     assert.equal(read.headers["access-control-allow-credentials"], "true");
 
     const write = await request(app)
       .post("/api/roles")
-      .set("Origin", "http://localhost:8321")
+      .set("Origin", "http://localhost:8318")
       .send({ slug: "trusted", name: "Trusted", permissions: ["issues.read"] });
     assert.equal(write.status, 201);
     await request(app).delete(`/api/roles/${write.body.id}`).expect(204);

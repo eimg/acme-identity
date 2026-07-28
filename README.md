@@ -2,7 +2,7 @@
 
 Thin local identity layer for the Acme suite: users, manageable roles, sessions, service tokens, and a stable principal contract sibling apps can resolve.
 
-**Default port:** [http://127.0.0.1:8317](http://127.0.0.1:8317) · **Repo:** [github.com/eimg/acme-identity](https://github.com/eimg/acme-identity)
+**Default port:** [http://127.0.0.1:8316](http://127.0.0.1:8316) · **Repo:** [github.com/eimg/acme-identity](https://github.com/eimg/acme-identity)
 
 ## Acme development testbed
 
@@ -11,13 +11,13 @@ Acme Identity is a cross-cutting service. Workflow and knowledge apps consume it
 | Project | Role |
 |---|---|
 | **[Acme Identity](https://github.com/eimg/acme-identity)** | Suite auth: users, roles, sessions, service tokens, `acme.principal.v1` |
-| **[Prelude](https://github.com/eimg/prelude)** | Project inception; first planned consumer |
+| **[Prelude](https://github.com/eimg/prelude)** | Project inception; optional Identity adapter and delegated Primer auth |
 | **[Helix](https://github.com/eimg/helix)** | Agent workflow control plane |
 | **[Acme Issues](https://github.com/eimg/acme-issues)** | Issue and local PR lifecycle |
 | **[Acme Projects](https://github.com/eimg/acme-projects)** | Feature-idea board |
-| **[Primer](https://github.com/eimg/primer)** | Knowledge product; integrate **last** (groups/ACL stay in Primer) |
+| **[Primer](https://github.com/eimg/primer)** | Knowledge product; Identity gates operations while groups/ACL stay in Primer |
 
-See [`docs/integration.md`](./docs/integration.md) for consumer wiring and rollout order.
+See [`docs/integration.md`](./docs/integration.md) for consumer wiring and the current integration map.
 
 ## Auth modes
 
@@ -31,7 +31,7 @@ Sibling apps should default consumers to `off` so local feature work stays unblo
 To exercise a non-admin gate while still in `off` mode, name a seeded user:
 
 ```bash
-curl -H 'x-acme-dev-user: viewer' http://127.0.0.1:8317/api/principal
+curl -H 'x-acme-dev-user: viewer' http://127.0.0.1:8316/api/principal
 ```
 
 ## Seeded roles
@@ -39,7 +39,7 @@ curl -H 'x-acme-dev-user: viewer' http://127.0.0.1:8317/api/principal
 | Slug | Intent |
 |---|---|
 | `admin` | Full suite + identity management (`*`) |
-| `operator` | Trigger Helix, merge, write boards/issues |
+| `operator` | Read/trigger/review/bootstrap Helix, merge, write boards/issues |
 | `member` | Write inception/issues/boards; Primer ask |
 | `viewer` | Read-only |
 
@@ -56,7 +56,17 @@ Password equals username for local development:
 - `member` / `member`
 - `viewer` / `viewer`
 
+The local seed also provisions the nine human Primer fixture accounts using
+their email local-part as both username and initial development password (for
+example `maya.chen` / `maya.chen`). Their exact emails let Primer establish a
+stable Identity-subject-to-existing-actor mapping on first use. Change these
+development passwords before using the suite beyond loopback.
+
 Set `ACME_IDENTITY_ADMIN_PASSWORD` before the first run to seed a real admin password, or run `acme-identity set-password admin` later. See [`docs/operations.md`](./docs/operations.md) before binding to anything but loopback.
+
+For the local sibling checkout, `npm run provision:suite-auth` rotates five
+origin-bound, least-privilege machine tokens into the ignored service `.env`
+files. Tokens expire after 90 days unless `ACME_SERVICE_TOKEN_DAYS` is set.
 
 ## Quick start
 
@@ -66,7 +76,7 @@ npm install
 npm run dev
 ```
 
-Open [http://127.0.0.1:8317](http://127.0.0.1:8317).
+Open [http://127.0.0.1:8316](http://127.0.0.1:8316).
 
 ```bash
 # Real local auth
@@ -120,14 +130,14 @@ In `off` mode the helper returns admin even if identity is unreachable. Gate on 
 | Doc | Contents |
 |---|---|
 | [`AGENTS.md`](./AGENTS.md) | Agent working rules and module map |
-| [`docs/integration.md`](./docs/integration.md) | Sibling app integration, permissions, rollout |
+| [`docs/integration.md`](./docs/integration.md) | Sibling app integration, permissions, and current consumer status |
 | [`docs/principal-contract.md`](./docs/principal-contract.md) | `acme.principal.v1` reference |
 | [`docs/operations.md`](./docs/operations.md) | Configuration, recovery, and known gaps |
 
 ## Scripts
 
 ```bash
-npm run dev       # serve + Vite HMR on :8317
+npm run dev       # serve + Vite HMR on :8316
 npm test
 npm run verify    # typecheck, test, build
 ```

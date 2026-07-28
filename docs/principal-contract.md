@@ -91,7 +91,7 @@ Treating an outage as "signed out" would show every user a login screen they can
 - Primer evidence ACL / groups — stay in Primer
 - Issues project membership — stay in Issues
 - Helix run policy — stay in Helix
-- Webhook HMAC secrets — per integration edge (may use service principals later)
+- Service routing and trusted destination origins — configured by each calling product; Identity supplies scoped bearer principals but never decides where a credential may be sent
 
 ## Future adapters
 

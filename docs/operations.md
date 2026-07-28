@@ -14,7 +14,7 @@ Identity is local-first and deliberately small, but it is the one service in the
 | `ACME_IDENTITY_ALLOWED_ORIGINS` | unset | Origins allowed to call the API from a browser (enables credentialed CORS) |
 | `ACME_IDENTITY_COOKIE_SECURE` | auto | `1`/`0` to force the session cookie `Secure` flag; auto follows the request scheme |
 | `ACME_IDENTITY_TRUST_PROXY` | unset | Set to `1` behind a reverse proxy so client IP and scheme come from `X-Forwarded-*` |
-| `PORT` | `8317` | Default port |
+| `PORT` | `8316` | Default port |
 
 ## Before exposing it beyond loopback
 
@@ -33,7 +33,7 @@ Every recovery path is local and needs no working session, so a lost admin passw
 ```bash
 acme-identity list-users
 echo 'new-password' | acme-identity set-password admin   # revokes that user's sessions
-acme-identity mint-token ci-bot operator --expires-in-days 30
+acme-identity mint-token ci-issues-writer svc-projects-to-issues --expires-in-days 30
 acme-identity list-tokens
 ```
 
@@ -44,6 +44,9 @@ Identity also refuses edits that would leave nobody able to administer it: you c
 - Sessions last 14 days, are stored server-side, and are revoked on password change and on user deactivation. Expired rows are swept on startup and on each login.
 - `DELETE /api/users/:id/sessions` signs a user out everywhere. The manage UI exposes it as **Sign out** on the users tab.
 - Service tokens are shown once at creation and stored as a SHA-256 digest, so a leaked database does not yield usable tokens. Prefer an expiry for machine edges.
+- `npm run provision:suite-auth` creates or updates five least-privilege machine
+  roles, atomically rotates their tokens into sibling ignored `.env` files,
+  applies a 90-day expiry by default, and sets those files to mode `0600`.
 - Failed logins are throttled per username and client IP (10 failures per 15 minutes) and answered with `429` plus `Retry-After`. The counter is in memory, so a restart clears it.
 
 ## Backups
