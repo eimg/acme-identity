@@ -149,6 +149,24 @@ describe("acme-identity API", () => {
     await request(app).delete(`/api/roles/${created.body.id}`).expect(204);
   });
 
+  it("refuses deleting a role a service token still depends on", async () => {
+    const app = off();
+    const role = await request(app)
+      .post("/api/roles")
+      .send({ slug: "bot-role", name: "Bot role", permissions: ["issues.write"] });
+    const token = await request(app)
+      .post("/api/tokens")
+      .send({ name: "bound-bot", roleSlugs: ["bot-role"] });
+    assert.equal(token.status, 201);
+
+    const blocked = await request(app).delete(`/api/roles/${role.body.id}`);
+    assert.equal(blocked.status, 400, "deleting it would silently strip the token's permissions");
+    assert.match(blocked.body.error, /service tokens/);
+
+    await request(app).delete(`/api/tokens/${token.body.id}`).expect(204);
+    await request(app).delete(`/api/roles/${role.body.id}`).expect(204);
+  });
+
   it("refuses deleting builtin roles", async () => {
     const roles = await request(off()).get("/api/roles");
     const admin = roles.body.find((role: { slug: string }) => role.slug === "admin");
