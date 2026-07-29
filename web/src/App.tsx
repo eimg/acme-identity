@@ -12,6 +12,33 @@ import { api, formatTime } from "./api";
 
 type Tab = "users" | "roles" | "tokens" | "account";
 
+const tabDetails: Record<Tab, { label: string; short: string; title: string; description: string }> = {
+  users: {
+    label: "People",
+    short: "Pe",
+    title: "People",
+    description: "Human accounts and the roles they carry across the Acme suite.",
+  },
+  roles: {
+    label: "Access roles",
+    short: "Ro",
+    title: "Access roles",
+    description: "Reusable capability sets for people and machine principals.",
+  },
+  tokens: {
+    label: "Service tokens",
+    short: "To",
+    title: "Service tokens",
+    description: "Scoped credentials for trusted service-to-service connections.",
+  },
+  account: {
+    label: "My account",
+    short: "Me",
+    title: "My account",
+    description: "Your resolved principal and local password settings.",
+  },
+};
+
 interface SessionResponse {
   principal: Principal;
   user: User | null;
@@ -32,7 +59,10 @@ export function App() {
       }
     },
   });
-  const [tab, setTab] = useState<Tab>("users");
+  const [tab, setTab] = useState<Tab>(() => {
+    const requested = new URLSearchParams(location.search).get("tab");
+    return requested && requested in tabDetails ? requested as Tab : "users";
+  });
   const [toast, setToast] = useState("");
   const [createdToken, setCreatedToken] = useState<string | null>(null);
 
@@ -73,53 +103,85 @@ export function App() {
     );
   }
 
+  const activeTab = tabDetails[tab];
+
   return (
-    <div className="shell">
-      <header className="topbar">
+    <div className="app-frame">
+      <aside className="sidebar">
         <div className="brand">
-          <div className="mark" aria-hidden />
+          <div className="mark" aria-hidden><span>AI</span></div>
           <div>
             <strong>Acme Identity</strong>
-            <span>Thin suite auth layer</span>
+            <span>Suite access</span>
           </div>
         </div>
-        <div className="topbar-meta">
-          <span className={`mode-pill mode-${meta.data?.authMode ?? "local"}`}>
-            mode · {meta.data?.authMode}
-          </span>
-          <span className="who">
-            {session.data?.principal.displayName ?? "Admin"}
-            <em>{session.data?.principal.roles.join(", ")}</em>
-          </span>
+
+        <nav className="side-nav" aria-label="Identity sections">
+          {(["users", "roles", "tokens", "account"] as Tab[]).map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={tab === item ? "side-link active" : "side-link"}
+              aria-current={tab === item ? "page" : undefined}
+              onClick={() => setTab(item)}
+            >
+              <span className="nav-monogram" aria-hidden>{tabDetails[item].short}</span>
+              <span>{tabDetails[item].label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-session">
+          <div className="session-avatar" aria-hidden>
+            {(principal?.displayName ?? "A").slice(0, 1).toUpperCase()}
+          </div>
+          <div className="session-copy">
+            <strong>{principal?.displayName ?? "Admin"}</strong>
+            <span>{principal?.roles.join(", ") || "development"}</span>
+          </div>
           {!isOff && (
-            <button type="button" className="button ghost" onClick={() => signOut.mutate()}>
+            <button type="button" className="text-button" onClick={() => signOut.mutate()}>
               Sign out
             </button>
           )}
         </div>
-      </header>
+      </aside>
 
-      {isOff && (
-        <div className="banner">
-          Auth mode is <code>off</code>. All callers resolve as <strong>admin</strong> for local
-          feature testing. Set <code>ACME_AUTH_MODE=local</code> for real sessions.
-        </div>
-      )}
+      <div className="workspace">
+        <header className="mobile-header">
+          <div className="brand compact">
+            <div className="mark" aria-hidden><span>AI</span></div>
+            <strong>Acme Identity</strong>
+          </div>
+          <span className={`mode-pill mode-${meta.data?.authMode ?? "local"}`}>
+            {meta.data?.authMode}
+          </span>
+        </header>
 
-      <nav className="tabs">
-        {(["users", "roles", "tokens", "account"] as Tab[]).map((item) => (
-          <button
-            key={item}
-            type="button"
-            className={tab === item ? "tab active" : "tab"}
-            onClick={() => setTab(item)}
-          >
-            {item}
-          </button>
-        ))}
-      </nav>
+        <main className="content">
+          <div className="page-heading">
+            <div>
+              <span className="eyebrow">Identity console</span>
+              <h1>{activeTab.title}</h1>
+              <p>{activeTab.description}</p>
+            </div>
+            <span className={`mode-pill mode-${meta.data?.authMode ?? "local"}`}>
+              {meta.data?.authMode === "off" ? "Development mode" : "Local auth"}
+            </span>
+          </div>
 
-      <main className="content">
+          {isOff && (
+            <div className="notice" role="note">
+              <span className="notice-mark" aria-hidden>i</span>
+              <p>
+                <strong>Authentication is bypassed for local testing.</strong>
+                All requests resolve as the development admin. Use <code>ACME_AUTH_MODE=local</code>
+                when testing sign-in and role enforcement.
+              </p>
+            </div>
+          )}
+
+          <div className="page-body">
         {tab === "account" ? (
           <AccountPanel principal={principal} onToast={showToast} />
         ) : !canManage ? (
@@ -137,7 +199,9 @@ export function App() {
             onToast={showToast}
           />
         )}
-      </main>
+          </div>
+        </main>
+      </div>
 
       {toast && <div className="toast">{toast}</div>}
     </div>
@@ -209,6 +273,18 @@ function UsersPanel({ onToast }: { onToast: (message: string) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [roleSlugs, setRoleSlugs] = useState<string[]>(["member"]);
+  const [search, setSearch] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+
+  const visibleUsers = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return users.data ?? [];
+    return (users.data ?? []).filter((user) =>
+      [user.displayName, user.username, user.email, ...user.roleSlugs]
+        .some((value) => value.toLowerCase().includes(needle)),
+    );
+  }, [search, users.data]);
 
   const create = useMutation({
     mutationFn: () =>
@@ -222,6 +298,7 @@ function UsersPanel({ onToast }: { onToast: (message: string) => void }) {
       setEmail("");
       setPassword("");
       setRoleSlugs(["member"]);
+      setShowCreate(false);
       await queryClient.invalidateQueries({ queryKey: ["users"] });
       onToast("User created");
     },
@@ -271,73 +348,35 @@ function UsersPanel({ onToast }: { onToast: (message: string) => void }) {
   });
 
   return (
-    <div className="panel-grid">
-      <section className="panel">
-        <h2>Users</h2>
-        <div className="table">
-          {(users.data ?? []).map((user) => (
-            <article key={user.id} className="row">
-              <div>
-                <strong>{user.displayName}</strong>
-                <span className="mono">
-                  {user.username}
-                  {!user.active && " · inactive"}
-                </span>
-              </div>
-              <div className="chips">
-                {(roles.data ?? []).map((role) => {
-                  const on = user.roleSlugs.includes(role.slug);
-                  return (
-                    <button
-                      key={role.slug}
-                      type="button"
-                      className={on ? "chip on" : "chip"}
-                      onClick={() => {
-                        const next = on
-                          ? user.roleSlugs.filter((slug) => slug !== role.slug)
-                          : [...user.roleSlugs, role.slug];
-                        if (!next.length) {
-                          onToast("At least one role is required");
-                          return;
-                        }
-                        patchRoles.mutate({ id: user.id, next });
-                      }}
-                    >
-                      {role.slug}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="row-actions">
-                <button type="button" className="button small" onClick={() => toggleActive.mutate(user)}>
-                  {user.active ? "Disable" : "Enable"}
-                </button>
-                <button
-                  type="button"
-                  className="button small"
-                  onClick={() => revokeSessions.mutate(user.id)}
-                >
-                  Sign out
-                </button>
-                <button
-                  type="button"
-                  className="button small danger"
-                  onClick={() => {
-                    if (confirm(`Delete ${user.username}?`)) remove.mutate(user.id);
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            </article>
-          ))}
+    <div className="resource-view">
+      <div className="resource-toolbar">
+        <label className="search-field">
+          <span className="sr-only">Search people</span>
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search people, email, or role…"
+          />
+        </label>
+        <div className="toolbar-meta">
+          <span>{users.data?.length ?? 0} people</span>
+          <button type="button" className="button primary" onClick={() => setShowCreate((open) => !open)}>
+            {showCreate ? "Close" : "Add person"}
+          </button>
         </div>
-      </section>
+      </div>
 
-      <section className="panel">
-        <h2>New user</h2>
+      {showCreate && (
+        <section className="editor-panel" aria-label="Add person">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">New account</span>
+              <h2>Add a person</h2>
+              <p>Create credentials, then assign one or more access roles.</p>
+            </div>
+          </div>
         <form
-          className="stack"
+          className="form-grid"
           onSubmit={(event) => {
             event.preventDefault();
             create.mutate();
@@ -361,38 +400,137 @@ function UsersPanel({ onToast }: { onToast: (message: string) => void }) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            required
+          />
           </label>
-          <fieldset>
+          <fieldset className="form-span">
             <legend>Roles</legend>
-            <div className="chips">
+            <div className="choice-grid compact">
               {(roles.data ?? []).map((role) => {
                 const on = roleSlugs.includes(role.slug);
                 return (
                   <button
                     key={role.slug}
                     type="button"
-                    className={on ? "chip on" : "chip"}
+                    className={on ? "choice on" : "choice"}
+                    aria-pressed={on}
                     onClick={() =>
                       setRoleSlugs((current) =>
                         on ? current.filter((slug) => slug !== role.slug) : [...current, role.slug],
                       )
                     }
                   >
-                    {role.slug}
+                    <strong>{role.name}</strong>
+                    <span>{role.slug}</span>
                   </button>
                 );
               })}
             </div>
           </fieldset>
-          <button className="button primary" type="submit" disabled={create.isPending}>
+          <div className="form-actions form-span">
+            <button type="button" className="button" onClick={() => setShowCreate(false)}>Cancel</button>
+            <button className="button primary" type="submit" disabled={create.isPending || !roleSlugs.length}>
             Create user
-          </button>
+            </button>
+          </div>
         </form>
+        </section>
+      )}
+
+      <section className="list-panel">
+        <div className="list-header user-grid">
+          <span>Person</span>
+          <span>Access</span>
+          <span>Status</span>
+          <span className="align-right">Actions</span>
+        </div>
+        <div className="data-list">
+          {visibleUsers.map((user) => {
+            const editing = editingUserId === user.id;
+            return (
+              <article key={user.id} className={editing ? "data-item expanded" : "data-item"}>
+                <div className="data-row user-grid">
+                  <div className="person-cell">
+                    <span className="person-avatar" aria-hidden>{initials(user.displayName)}</span>
+                    <span>
+                      <strong>{user.displayName}</strong>
+                      <small>{user.email || `@${user.username}`}</small>
+                    </span>
+                  </div>
+                  <div className="tag-list">
+                    {user.roleSlugs.map((slug) => <span key={slug} className="tag">{slug}</span>)}
+                  </div>
+                  <span className={user.active ? "status active" : "status inactive"}>
+                    {user.active ? "Active" : "Inactive"}
+                  </span>
+                  <div className="row-actions align-right">
+                    <button
+                      type="button"
+                      className="button small"
+                      onClick={() => setEditingUserId(editing ? null : user.id)}
+                    >
+                      {editing ? "Done" : "Edit access"}
+                    </button>
+                    <button type="button" className="button small quiet" onClick={() => toggleActive.mutate(user)}>
+                      {user.active ? "Disable" : "Enable"}
+                    </button>
+                  </div>
+                </div>
+                {editing && (
+                  <div className="inline-editor">
+                    <div>
+                      <h3>Access roles</h3>
+                      <p>Changes apply immediately across the suite.</p>
+                    </div>
+                    <div className="choice-grid compact">
+                      {(roles.data ?? []).map((role) => {
+                        const on = user.roleSlugs.includes(role.slug);
+                        return (
+                          <button
+                            key={role.slug}
+                            type="button"
+                            className={on ? "choice on" : "choice"}
+                            aria-pressed={on}
+                            onClick={() => {
+                              const next = on
+                                ? user.roleSlugs.filter((slug) => slug !== role.slug)
+                                : [...user.roleSlugs, role.slug];
+                              if (!next.length) return onToast("At least one role is required");
+                              patchRoles.mutate({ id: user.id, next });
+                            }}
+                          >
+                            <strong>{role.name}</strong>
+                            <span>{role.slug}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="inline-danger">
+                      <button type="button" className="text-button" onClick={() => revokeSessions.mutate(user.id)}>
+                        Sign out all sessions
+                      </button>
+                      <button
+                        type="button"
+                        className="text-button danger-text"
+                        onClick={() => { if (confirm(`Delete ${user.username}?`)) remove.mutate(user.id); }}
+                      >
+                        Delete account
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+          {!visibleUsers.length && <p className="empty-state">No people match that search.</p>}
+        </div>
       </section>
     </div>
   );
+}
+
+function initials(name: string): string {
+  return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
 
 /** Vocabulary published by /api/meta, so the UI and consumers share one list. */
@@ -420,22 +558,26 @@ function PermissionPicker({
     onChange(selected.includes(key) ? selected.filter((item) => item !== key) : [...selected, key]);
 
   return (
-    <fieldset disabled={disabled}>
+    <fieldset disabled={disabled} className="permission-picker">
       <legend>Permissions</legend>
       {groups.map(([product, entries]) => (
         <div key={product} className="perm-group">
           <span className="perm-product">{product}</span>
-          <div className="chips">
+          <div className="permission-grid">
             {entries.map((entry) => (
               <button
                 key={entry.key}
                 type="button"
-                title={entry.description}
                 disabled={disabled}
-                className={selected.includes(entry.key) ? "chip on" : "chip"}
+                className={selected.includes(entry.key) ? "permission-option on" : "permission-option"}
+                aria-pressed={selected.includes(entry.key)}
                 onClick={() => toggle(entry.key)}
               >
-                {entry.key}
+                <span className="permission-check" aria-hidden>{selected.includes(entry.key) ? "✓" : ""}</span>
+                <span>
+                  <strong>{entry.key}</strong>
+                  <small>{entry.description}</small>
+                </span>
               </button>
             ))}
           </div>
@@ -444,16 +586,18 @@ function PermissionPicker({
       {extras.length > 0 && (
         <div className="perm-group">
           <span className="perm-product">product-defined</span>
-          <div className="chips">
+          <div className="permission-grid">
             {extras.map((key) => (
               <button
                 key={key}
                 type="button"
                 disabled={disabled}
-                className="chip on"
+                className="permission-option on"
+                aria-pressed="true"
                 onClick={() => toggle(key)}
               >
-                {key}
+                <span className="permission-check" aria-hidden>✓</span>
+                <span><strong>{key}</strong><small>Product-defined capability</small></span>
               </button>
             ))}
           </div>
@@ -571,6 +715,7 @@ function RolesPanel({ onToast }: { onToast: (message: string) => void }) {
   const [description, setDescription] = useState("");
   const [permissions, setPermissions] = useState<string[]>(["identity.read"]);
   const [editing, setEditing] = useState<Role | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const create = useMutation({
     mutationFn: () =>
@@ -583,6 +728,7 @@ function RolesPanel({ onToast }: { onToast: (message: string) => void }) {
       setName("");
       setDescription("");
       setPermissions(["identity.read"]);
+      setCreating(false);
       await queryClient.invalidateQueries({ queryKey: ["roles"] });
       onToast("Role created");
     },
@@ -617,45 +763,31 @@ function RolesPanel({ onToast }: { onToast: (message: string) => void }) {
   });
 
   return (
-    <div className="panel-grid">
-      <section className="panel">
-        <h2>Roles</h2>
-        <div className="table">
-          {(roles.data ?? []).map((role) => (
-            <article key={role.id} className="row role-row">
-              <div>
-                <strong>
-                  {role.name} <span className="mono">{role.slug}</span>
-                  {role.builtin && <em className="badge">builtin</em>}
-                  {role.permissionsLocked && <em className="badge">fixed permissions</em>}
-                </strong>
-                <span>{role.description}</span>
-                <span className="perms">{role.permissions.join(", ") || "—"}</span>
-              </div>
-              <div className="row-actions">
-                <button type="button" className="button small" onClick={() => setEditing({ ...role })}>
-                  Edit
-                </button>
-                {!role.builtin && (
-                  <button
-                    type="button"
-                    className="button small danger"
-                    onClick={() => {
-                      if (confirm(`Delete role ${role.slug}?`)) remove.mutate(role.id);
-                    }}
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
+    <div className="resource-view">
+      <div className="resource-toolbar">
+        <div className="toolbar-summary">
+          <strong>{roles.data?.length ?? 0} roles</strong>
+          <span>Role names are labels; permissions are the enforcement contract.</span>
         </div>
-      </section>
+        <button
+          type="button"
+          className="button primary"
+          onClick={() => { setEditing(null); setCreating((open) => !open); }}
+        >
+          {creating ? "Close" : "Create role"}
+        </button>
+      </div>
 
-      <section className="panel">
-        <h2>{editing ? `Edit ${editing.slug}` : "New role"}</h2>
-        {editing ? (
+      {(editing || creating) && (
+        <section className="editor-panel" aria-label={editing ? `Edit ${editing.slug}` : "Create role"}>
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">{editing ? "Role settings" : "New access role"}</span>
+              <h2>{editing ? `Edit ${editing.name}` : "Create an access role"}</h2>
+              <p>{editing ? editing.slug : "Group only the capabilities this role needs."}</p>
+            </div>
+          </div>
+          {editing ? (
           <form
             className="stack"
             onSubmit={(event) => {
@@ -678,16 +810,22 @@ function RolesPanel({ onToast }: { onToast: (message: string) => void }) {
                 rows={3}
               />
             </label>
-            <PermissionPicker
-              selected={editing.permissions}
-              disabled={editing.permissionsLocked}
-              onChange={(next) => setEditing({ ...editing, permissions: next })}
-            />
-            {editing.permissionsLocked && (
-              <p className="muted">
-                The builtin <code>{editing.slug}</code> role keeps <code>*</code> so identity can
-                never be locked out. Name and description are still editable.
-              </p>
+            {editing.permissionsLocked ? (
+              <div className="permission-lock">
+                <span className="permission-check" aria-hidden>✓</span>
+                <div>
+                  <strong>* · Full suite access</strong>
+                  <p>
+                    This capability is fixed so Identity cannot be locked out. Name and
+                    description remain editable.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <PermissionPicker
+                selected={editing.permissions}
+                onChange={(next) => setEditing({ ...editing, permissions: next })}
+              />
             )}
             <div className="row-actions">
               <button className="button primary" type="submit">
@@ -723,7 +861,54 @@ function RolesPanel({ onToast }: { onToast: (message: string) => void }) {
               Create role
             </button>
           </form>
-        )}
+          )}
+        </section>
+      )}
+
+      <section className="list-panel">
+        <div className="list-header role-grid">
+          <span>Role</span>
+          <span>Capabilities</span>
+          <span>Type</span>
+          <span className="align-right">Actions</span>
+        </div>
+        <div className="data-list">
+          {(roles.data ?? []).map((role) => (
+            <article key={role.id} className="data-row role-grid">
+              <div className="role-identity">
+                <strong>{role.name}</strong>
+                <small>{role.slug}</small>
+                <p>{role.description}</p>
+              </div>
+              <div className="permission-summary">
+                <strong>{role.permissions.length}</strong>
+                <span>{role.permissions.slice(0, 3).join(" · ")}{role.permissions.length > 3 ? " · …" : ""}</span>
+              </div>
+              <div className="tag-list">
+                <span className="tag">{role.builtin ? "Built in" : "Custom"}</span>
+                {role.permissionsLocked && <span className="tag fixed">Fixed</span>}
+              </div>
+              <div className="row-actions align-right">
+                <button
+                  type="button"
+                  className="button small"
+                  onClick={() => { setCreating(false); setEditing({ ...role }); }}
+                >
+                  Edit
+                </button>
+                {!role.builtin && (
+                  <button
+                    type="button"
+                    className="button small quiet danger-text"
+                    onClick={() => { if (confirm(`Delete role ${role.slug}?`)) remove.mutate(role.id); }}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
     </div>
   );
@@ -745,8 +930,9 @@ function TokensPanel({
   });
   const roles = useQuery({ queryKey: ["roles"], queryFn: () => api<Role[]>("/api/roles") });
   const [name, setName] = useState("");
-  const [roleSlugs, setRoleSlugs] = useState<string[]>(["operator"]);
+  const [roleSlugs, setRoleSlugs] = useState<string[]>([]);
   const [expiresInDays, setExpiresInDays] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
 
   const roleOptions = useMemo(() => roles.data ?? [], [roles.data]);
 
@@ -763,6 +949,8 @@ function TokensPanel({
     onSuccess: async (token) => {
       setName("");
       setExpiresInDays("");
+      setRoleSlugs([]);
+      setShowCreate(false);
       onCreatedToken(token.token ?? null);
       await queryClient.invalidateQueries({ queryKey: ["tokens"] });
       onToast("Service token created — copy it now");
@@ -780,56 +968,39 @@ function TokensPanel({
   });
 
   return (
-    <div className="panel-grid">
-      <section className="panel">
-        <h2>Service tokens</h2>
-        <p className="muted">
-          Machine principals for Issues ↔ Helix ↔ Projects and other suite edges. Shown once at
-          creation.
-        </p>
+    <div className="resource-view">
+      <div className="resource-toolbar">
+        <div className="toolbar-summary">
+          <strong>{tokens.data?.length ?? 0} active credentials</strong>
+          <span>Use one short-lived, least-privilege token per service direction.</span>
+        </div>
+        <button type="button" className="button primary" onClick={() => setShowCreate((open) => !open)}>
+          {showCreate ? "Close" : "Mint token"}
+        </button>
+      </div>
+
         {createdToken && (
-          <div className="secret">
-            <code>{createdToken}</code>
-            <button type="button" className="button small" onClick={() => onCreatedToken(null)}>
-              Dismiss
-            </button>
+          <div className="secret" role="status">
+            <div>
+              <strong>Copy this token now</strong>
+              <span>It cannot be shown again after you dismiss it.</span>
+              <code>{createdToken}</code>
+            </div>
+            <button type="button" className="button small" onClick={() => onCreatedToken(null)}>Dismiss</button>
           </div>
         )}
-        <div className="table">
-          {(tokens.data ?? []).map((token) => (
-            <article key={token.id} className="row">
-              <div>
-                <strong>{token.name}</strong>
-                <span className="mono">
-                  {token.tokenPrefix}… · {token.roleSlugs.join(", ")}
-                </span>
-                <span className="muted">
-                  Created {formatTime(token.createdAt)}
-                  {token.lastUsedAt ? ` · last used ${formatTime(token.lastUsedAt)}` : ""}
-                  {token.expiresAt
-                    ? ` · ${token.expiresAt < Date.now() ? "expired" : "expires"} ${formatTime(token.expiresAt)}`
-                    : " · no expiry"}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="button small danger"
-                onClick={() => {
-                  if (confirm(`Revoke ${token.name}?`)) remove.mutate(token.id);
-                }}
-              >
-                Revoke
-              </button>
-            </article>
-          ))}
-          {!tokens.data?.length && <p className="muted">No service tokens yet.</p>}
-        </div>
-      </section>
 
-      <section className="panel">
-        <h2>Mint token</h2>
+      {showCreate && (
+        <section className="editor-panel" aria-label="Mint service token">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">Machine credential</span>
+              <h2>Mint a service token</h2>
+              <p>The secret is displayed once. Prefer a scoped service role and an expiry.</p>
+            </div>
+          </div>
         <form
-          className="stack"
+          className="form-grid token-form"
           onSubmit={(event) => {
             event.preventDefault();
             create.mutate();
@@ -849,32 +1020,78 @@ function TokensPanel({
               placeholder="90"
             />
           </label>
-          <fieldset>
+          <fieldset className="form-span">
             <legend>Roles</legend>
-            <div className="chips">
+            <div className="choice-grid compact">
               {roleOptions.map((role) => {
                 const on = roleSlugs.includes(role.slug);
                 return (
                   <button
                     key={role.slug}
                     type="button"
-                    className={on ? "chip on" : "chip"}
+                    className={on ? "choice on" : "choice"}
+                    aria-pressed={on}
                     onClick={() =>
                       setRoleSlugs((current) =>
                         on ? current.filter((slug) => slug !== role.slug) : [...current, role.slug],
                       )
                     }
                   >
-                    {role.slug}
+                    <strong>{role.name}</strong>
+                    <span>{role.slug}</span>
                   </button>
                 );
               })}
             </div>
           </fieldset>
-          <button className="button primary" type="submit" disabled={create.isPending || !roleSlugs.length}>
-            Create token
-          </button>
+          <div className="form-actions form-span">
+            <button type="button" className="button" onClick={() => setShowCreate(false)}>Cancel</button>
+            <button className="button primary" type="submit" disabled={create.isPending || !roleSlugs.length}>
+              Create token
+            </button>
+          </div>
         </form>
+        </section>
+      )}
+
+      <section className="list-panel">
+        <div className="list-header token-grid">
+          <span>Credential</span>
+          <span>Access</span>
+          <span>Activity</span>
+          <span className="align-right">Actions</span>
+        </div>
+        <div className="data-list">
+          {(tokens.data ?? []).map((token) => (
+            <article key={token.id} className="data-row token-grid">
+              <div className="role-identity">
+                <strong>{token.name}</strong>
+                <small className="mono">{token.tokenPrefix}…</small>
+              </div>
+              <div className="tag-list">
+                {token.roleSlugs.map((slug) => <span key={slug} className="tag">{slug}</span>)}
+              </div>
+              <div className="token-activity">
+                <strong>{token.lastUsedAt ? `Used ${formatTime(token.lastUsedAt)}` : "Never used"}</strong>
+                <span>
+                  {token.expiresAt
+                    ? `${token.expiresAt < Date.now() ? "Expired" : "Expires"} ${formatTime(token.expiresAt)}`
+                    : "No expiry"}
+                </span>
+              </div>
+              <div className="row-actions align-right">
+                <button
+                  type="button"
+                  className="button small quiet danger-text"
+                  onClick={() => { if (confirm(`Revoke ${token.name}?`)) remove.mutate(token.id); }}
+                >
+                  Revoke
+                </button>
+              </div>
+            </article>
+          ))}
+          {!tokens.data?.length && <p className="empty-state">No service tokens yet.</p>}
+        </div>
       </section>
     </div>
   );

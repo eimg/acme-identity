@@ -78,6 +78,13 @@ npm run dev
 
 Open [http://127.0.0.1:8316](http://127.0.0.1:8316).
 
+The local suite shares one host-only `acme_identity_session` cookie across its
+ports. Sign in through any Identity-backed browser app and the other apps on the
+same hostname resolve the same principal; signing out invalidates that central
+session everywhere. Use one hostname consistently (`127.0.0.1` and `localhost`
+are different cookie hosts). See [`docs/integration.md`](./docs/integration.md)
+for the trust boundary and production guidance.
+
 ```bash
 # Real local auth
 ACME_AUTH_MODE=local npm run dev
@@ -107,6 +114,10 @@ ACME_AUTH_MODE=off ACME_ALLOW_INSECURE=1 npm run dev
 | `DELETE` | `/api/tokens/:id` | Revoke |
 
 Every `/api` response is JSON, including 404s and unexpected errors, so consumers never have to parse an HTML error page. Cross-origin writes are rejected unless the origin is in `ACME_IDENTITY_ALLOWED_ORIGINS`.
+
+The manage UI accepts `/?tab=account` as a direct link to the signed-in user's
+account. Replaceable consumer adapters may expose that URL as optional session
+metadata; browser components should not hardcode an Identity deployment URL.
 
 Principal contract: `acme.principal.v1` — see [`docs/principal-contract.md`](./docs/principal-contract.md).
 

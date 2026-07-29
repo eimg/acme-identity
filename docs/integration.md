@@ -126,6 +126,28 @@ Consumers must bind each token to configured trusted destination origins before
 adding the header. A user-editable callback or integration URL must never decide
 where a service credential is sent. Do not authenticate webhooks with browser cookies.
 
+## Shared local browser session
+
+The local suite uses one host-only `acme_identity_session` cookie with
+`Path=/`, `HttpOnly`, and `SameSite=Lax`. Cookies are scoped by hostname rather
+than port, so signing in through one app on `127.0.0.1` makes that session
+available to the other suite ports on `127.0.0.1`. Each consumer resolves the
+cookie server-side through Identity and applies its own permission gates; it
+does not copy user records. Signing out deletes the central session and clears
+the shared cookie.
+
+Consumers must proxy browser session writes through their own same-origin API
+and reject cross-origin mutations. Use one hostname consistently: `localhost`
+and `127.0.0.1` do not share cookies. This is a trusted local-suite convenience,
+not a general production SSO topology—a compromised sibling server on the same
+host can receive the shared cookie. A deployed replacement should normally use
+an OIDC-style provider with per-application sessions.
+
+An auth adapter may optionally publish an account-management URL in its local
+session response. The current Identity UI supports `/?tab=account`. Keep this
+metadata optional so standalone consumers and future providers remain usable
+without Acme-specific browser coupling.
+
 ## Calling identity from a browser
 
 Identity does **not** send CORS headers by default, because the normal pattern is server-side resolution. Cross-origin **writes are rejected** even though `SameSite=Lax` would attach the cookie: every suite app is on another port of the same host, so `localhost:8318` is same-site with `localhost:8316` and would otherwise be able to drive authenticated writes.
