@@ -14,6 +14,7 @@ Acme Identity is the thin local identity layer for the Acme suite. It owns users
 | Helix | `~/Desktop/acme/helix` | Workflow control plane; consumer of identity |
 | Acme Issues | `~/Desktop/acme/acme-issues` | Issues / local PRs; consumer of identity |
 | Acme Projects | `~/Desktop/acme/acme-projects` | Feature board; consumer of identity |
+| Acme Observability | `~/Desktop/acme/acme-obs` | Privileged operational projection; consumer of identity |
 
 ## Product boundaries
 

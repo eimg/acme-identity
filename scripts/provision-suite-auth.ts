@@ -24,6 +24,10 @@ const roleSpecs = [
   { slug: "svc-issues-to-projects", name: "Issues to Projects", permissions: ["projects.write"] },
   { slug: "svc-helix-to-issues", name: "Helix to Issues", permissions: ["issues.write"] },
   { slug: "svc-helix-to-prelude", name: "Helix to Prelude", permissions: ["prelude.read"] },
+  { slug: "svc-obs-to-prelude", name: "Observability to Prelude", permissions: ["prelude.read"] },
+  { slug: "svc-obs-to-issues", name: "Observability to Issues", permissions: ["issues.read"] },
+  { slug: "svc-obs-to-projects", name: "Observability to Projects", permissions: ["projects.read"] },
+  { slug: "svc-obs-to-helix", name: "Observability to Helix", permissions: ["helix.read"] },
 ] as const;
 
 const edgeSpecs = [
@@ -61,6 +65,34 @@ const edgeSpecs = [
     file: resolve(suiteRoot, "acme-todo/.helix/.env"),
     key: "HELIX_PRELUDE_TOKEN",
     extras: { HELIX_TRUSTED_PRELUDE_ORIGINS: "http://127.0.0.1:8318" },
+  },
+  {
+    name: "obs-to-prelude",
+    role: "svc-obs-to-prelude",
+    file: resolve(suiteRoot, "acme-obs/.env"),
+    key: "ACME_OBS_PRELUDE_TOKEN",
+    extras: {},
+  },
+  {
+    name: "obs-to-issues",
+    role: "svc-obs-to-issues",
+    file: resolve(suiteRoot, "acme-obs/.env"),
+    key: "ACME_OBS_ISSUES_TOKEN",
+    extras: {},
+  },
+  {
+    name: "obs-to-projects",
+    role: "svc-obs-to-projects",
+    file: resolve(suiteRoot, "acme-obs/.env"),
+    key: "ACME_OBS_PROJECTS_TOKEN",
+    extras: {},
+  },
+  {
+    name: "obs-to-helix",
+    role: "svc-obs-to-helix",
+    file: resolve(suiteRoot, "acme-obs/.env"),
+    key: "ACME_OBS_HELIX_TOKEN",
+    extras: {},
   },
 ] as const;
 

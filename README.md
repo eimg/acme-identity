@@ -16,6 +16,7 @@ Acme Identity is a cross-cutting service. Workflow and knowledge apps consume it
 | **[Acme Issues](https://github.com/eimg/acme-issues)** | Issue and local PR lifecycle |
 | **[Acme Projects](https://github.com/eimg/acme-projects)** | Feature-idea board |
 | **[Primer](https://github.com/eimg/primer)** | Knowledge product; Identity gates operations while groups/ACL stay in Primer |
+| **Acme Observability** | Privileged read-only operational projection |
 
 See [`docs/integration.md`](./docs/integration.md) for consumer wiring and the current integration map.
 
@@ -23,7 +24,7 @@ See [`docs/integration.md`](./docs/integration.md) for consumer wiring and the c
 
 | Mode | Env | Behavior |
 |---|---|---|
-| `off` | `ACME_AUTH_MODE=off` | Callers resolve as **admin** (dev principal). Use for feature tests across Prelude / Helix / Issues / Projects / Primer without signing in. Requires `ACME_ALLOW_INSECURE=1`, `ACME_IDENTITY_DEV=1`, or `NODE_ENV=test`. |
+| `off` | `ACME_AUTH_MODE=off` | Callers resolve as **admin** (dev principal). Use for feature tests across suite consumers without signing in. Requires `ACME_ALLOW_INSECURE=1`, `ACME_IDENTITY_DEV=1`, or `NODE_ENV=test`. |
 | `local` | `ACME_AUTH_MODE=local` (server default) | Real username/password sessions and Bearer service tokens. |
 
 Sibling apps should default consumers to `off` so local feature work stays unblocked; flip to `local` when exercising multi-user behavior. In `off` mode the consumer helper answers anonymous callers locally, so sibling tests do not need identity running at all.
@@ -39,9 +40,9 @@ curl -H 'x-acme-dev-user: viewer' http://127.0.0.1:8316/api/principal
 | Slug | Intent |
 |---|---|
 | `admin` | Full suite + identity management (`*`) |
-| `operator` | Read/trigger/review/bootstrap Helix, merge, write boards/issues |
-| `member` | Write inception/issues/boards; Primer ask |
-| `viewer` | Read-only |
+| `operator` | Run workflows and collect/manage suite observability |
+| `member` | Write inception/issues/boards, query Primer, view observability |
+| `viewer` | Read-only, including observability |
 
 Roles are editable (permissions/name/description). Builtin roles cannot be deleted, and the `admin` role keeps `*` so identity can never be locked out. Custom roles are created in the manage UI by picking permissions from the vocabulary published at `/api/meta`.
 
@@ -64,7 +65,7 @@ development passwords before using the suite beyond loopback.
 
 Set `ACME_IDENTITY_ADMIN_PASSWORD` before the first run to seed a real admin password, or run `acme-identity set-password admin` later. See [`docs/operations.md`](./docs/operations.md) before binding to anything but loopback.
 
-For the local sibling checkout, `npm run provision:suite-auth` rotates five
+For the local sibling checkout, `npm run provision:suite-auth` rotates nine
 origin-bound, least-privilege machine tokens into the ignored service `.env`
 files. Tokens expire after 90 days unless `ACME_SERVICE_TOKEN_DAYS` is set.
 
@@ -131,10 +132,10 @@ const principal = await resolvePrincipal({
   authorization: request.headers.authorization,
 });
 
-if (!hasPermission(principal, "prelude.write")) throw new Error("forbidden");
+if (!hasPermission(principal, "observability.read")) throw new Error("forbidden");
 ```
 
-In `off` mode the helper returns admin even if identity is unreachable. Gate on permissions using the exported matchers rather than reimplementing them — that is the one copy shared by all five consumers. `IdentityClientError.code` distinguishes `unauthenticated` (401) from `unavailable` (503), so an identity outage is never mistaken for a signed-out user.
+In `off` mode the helper returns admin even if identity is unreachable. Gate on permissions using the exported matchers rather than reimplementing them — that is the one copy shared by all consumers. `IdentityClientError.code` distinguishes `unauthenticated` (401) from `unavailable` (503), so an identity outage is never mistaken for a signed-out user.
 
 ## Documentation
 

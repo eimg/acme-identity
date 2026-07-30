@@ -129,6 +129,31 @@ const MIGRATIONS: Migration[] = [
         .run(JSON.stringify(permissions), Date.now());
     },
   },
+  {
+    version: 5,
+    up: (db) => {
+      const additions: Record<string, string[]> = {
+        operator: ["observability.read", "observability.collect", "observability.manage"],
+        member: ["observability.read"],
+        viewer: ["observability.read"],
+      };
+      const select = db.prepare(
+        `SELECT permissions_json FROM roles WHERE slug = ? AND builtin = 1`,
+      ) as Database.Statement<[string], { permissions_json: string }>;
+      const update = db.prepare(
+        `UPDATE roles SET permissions_json = ?, updated_at = ? WHERE slug = ? AND builtin = 1`,
+      );
+      for (const [slug, required] of Object.entries(additions)) {
+        const row = select.get(slug);
+        if (!row) continue;
+        const permissions = JSON.parse(row.permissions_json) as string[];
+        for (const permission of required) {
+          if (!permissions.includes(permission)) permissions.push(permission);
+        }
+        update.run(JSON.stringify(permissions), Date.now(), slug);
+      }
+    },
+  },
 ];
 
 function migrate(db: Database.Database): void {

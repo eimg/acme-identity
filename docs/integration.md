@@ -100,6 +100,9 @@ Permissions use `<product>.<action>`, with `<product>.*` for a whole namespace a
 | `projects.read` / `projects.write` | Acme Projects |
 | `primer.ask` | Primer grounded chat (ACL still enforced inside Primer) |
 | `primer.manage` | Primer actors, sources, synchronization, and evaluation |
+| `observability.read` | View suite observations, traces, and source health |
+| `observability.collect` | Run read-only source collection |
+| `observability.manage` | Manage configuration and rebuild derived observations |
 
 Products may gate on keys not in this list (`primer.evidence.read`); they are accepted as long as they match the shape. Custom roles (`dev`, `pm`, …) are created in the manage UI by assigning permission subsets — no code change required if gates use permission strings.
 
@@ -110,6 +113,7 @@ Products may gate on keys not in this list (`primer.evidence.read`); they are ac
 3. **Acme Issues** — permission-gated issue/PR operations and scoped service-token callbacks with trusted-destination binding.
 4. **Acme Projects** — permission-gated board operations and scoped service-token wiring to Acme Issues.
 5. **Primer** — maps the resolved principal to an existing Primer actor; Identity gates operations, while Primer-owned groups and evidence ACLs continue to determine knowledge access.
+6. **Acme Observability** — provides a privileged, suite-wide operational projection gated by read, collect, and manage permissions; it does not implement row-level source ACLs.
 
 When integrating an app, update that app's `AGENTS.md` related-projects table to list Acme Identity.
 

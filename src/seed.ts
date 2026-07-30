@@ -33,7 +33,7 @@ export const BUILTIN_ROLES: SeedRole[] = [
   {
     slug: "operator",
     name: "Operator",
-    description: "Run Helix workflows, trigger implementations, merge, manage boards",
+    description: "Run workflows and operate suite observability",
     permissions: [
       "identity.read",
       "prelude.write",
@@ -47,6 +47,9 @@ export const BUILTIN_ROLES: SeedRole[] = [
       "projects.write",
       "primer.ask",
       "primer.manage",
+      "observability.read",
+      "observability.collect",
+      "observability.manage",
     ],
   },
   {
@@ -59,6 +62,7 @@ export const BUILTIN_ROLES: SeedRole[] = [
       "issues.write",
       "projects.write",
       "primer.ask",
+      "observability.read",
     ],
   },
   {
@@ -72,6 +76,7 @@ export const BUILTIN_ROLES: SeedRole[] = [
       "issues.read",
       "projects.read",
       "primer.ask",
+      "observability.read",
     ],
   },
 ];
@@ -122,6 +127,21 @@ export const PERMISSION_VOCABULARY: PermissionInfo[] = [
     key: "primer.manage",
     product: "primer",
     description: "Manage Primer actors, sources, synchronization, and evaluation",
+  },
+  {
+    key: "observability.read",
+    product: "observability",
+    description: "View suite observations, traces, and source health",
+  },
+  {
+    key: "observability.collect",
+    product: "observability",
+    description: "Run read-only source collection",
+  },
+  {
+    key: "observability.manage",
+    product: "observability",
+    description: "Manage observability configuration and rebuild derived data",
   },
 ];
 
