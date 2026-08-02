@@ -6,6 +6,8 @@ Thin local identity layer for the Acme suite: users, manageable roles, sessions,
 
 ## Acme development testbed
 
+The Acme suite is an executable reference architecture, not an all-inclusive platform or a universal prescription. Its local-first, independently runnable products and replaceable integration seams let subject-matter experts inspect working patterns and adapt the parts that fit their organization.
+
 Acme Identity is a cross-cutting service. Workflow and knowledge apps consume it; it does not sit on the Prelude → Helix → Issues → Projects runtime path.
 
 | Project | Role |

@@ -2,6 +2,8 @@
 
 Acme Identity is the thin local identity layer for the Acme suite. It owns users, manageable roles, sessions, service tokens, and the `acme.principal.v1` contract. It is not a knowledge product and not part of the Prelude → Helix → Issues → Projects workflow line — those apps (and Primer) **consume** it.
 
+Treat the Acme suite as an executable reference architecture, not a universal platform. Preserve Identity's local operation, focused ownership, and replaceable public seam; add breadth to demonstrate this responsibility, not to anticipate every organization's identity system.
+
 **Repo:** [github.com/eimg/acme-identity](https://github.com/eimg/acme-identity)
 
 ## Related projects
