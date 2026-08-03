@@ -118,6 +118,7 @@ Products may gate on keys not in this list (`primer.evidence.read`); they are ac
 4. **Acme Projects** — permission-gated board operations and scoped service-token wiring to Acme Issues.
 5. **Primer** — maps the resolved principal to an existing Primer actor; Identity gates operations, while Primer-owned groups and evidence ACLs continue to determine knowledge access.
 6. **Acme Observability** — provides a privileged, suite-wide operational projection gated by read, collect, and manage permissions; it does not implement row-level source ACLs.
+7. **Acme Steering** — gates inbox reading, decisions, policy management, product-bound notification publishing, decision delivery, and narrow product actions with separate permission strings. Identity does not decide policy outcomes or domain transitions.
 
 When integrating an app, update that app's `AGENTS.md` related-projects table to list Acme Identity.
 
@@ -126,7 +127,7 @@ When integrating an app, update that app's `AGENTS.md` related-projects table to
 Browser sessions are for humans. Service-to-service edges use **service tokens**
 passed as `Authorization: Bearer svc_…`. Give every direction a narrow custom
 role, expiry, and separate token; do not reuse the human `operator` role. The
-local suite can provision and rotate all five edges with `npm run
+local suite can provision and rotate all nine current edges with `npm run
 provision:suite-auth` from Acme Identity. Tokens are shown once and stored only
 as digests.
 

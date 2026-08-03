@@ -2,7 +2,7 @@
 
 Thin local identity layer for the Acme suite: users, manageable roles, sessions, service tokens, and a stable principal contract sibling apps can resolve.
 
-Suite provisioning gives each Steering-to-workflow service role two intentionally separate capabilities: `<product>.steering.receive` records human dispositions, while the existing action-specific permission (`prelude.steering.export`, `helix.steering.recover`, `issues.steering.trigger`, or `projects.steering.submit`) authorizes the one narrow mechanical transition. Receiving a decision never implies permission to apply it.
+Suite provisioning gives each Steering-to-workflow service role two intentionally separate capabilities: `<product>.steering.receive` records completed dispositions, including attributable policy-authorized approval, while the existing action-specific permission (`prelude.steering.export`, `helix.steering.recover`, `issues.steering.trigger`, or `projects.steering.submit`) authorizes the one narrow mechanical transition. Receiving a decision never implies permission to apply it.
 
 **Default port:** [http://127.0.0.1:8316](http://127.0.0.1:8316) · **Repo:** [github.com/eimg/acme-identity](https://github.com/eimg/acme-identity)
 
@@ -21,6 +21,7 @@ Acme Identity is a cross-cutting service. Workflow and knowledge apps consume it
 | **[Acme Projects](https://github.com/eimg/acme-projects)** | Feature-idea board |
 | **[Primer](https://github.com/eimg/primer)** | Knowledge product; Identity gates operations while groups/ACL stay in Primer |
 | **Acme Observability** | Privileged read-only operational projection |
+| **[Acme Steering](https://github.com/eimg/acme-steering)** | Decision inbox and delegation policy; Identity supplies human permissions and product-bound service principals, not workflow authority |
 
 See [`docs/integration.md`](./docs/integration.md) for consumer wiring and the current integration map.
 
