@@ -82,7 +82,7 @@ export const BUILTIN_ROLES: SeedRole[] = [
 ];
 
 /**
- * Suite gate vocabulary, served from `/api/meta` so the manage UI and all five
+ * Suite gate vocabulary, served from `/api/meta` so the manage UI and suite
  * consumers pick permissions from one list instead of retyping strings. Products
  * may still gate on keys that are not listed here.
  */
@@ -114,6 +114,16 @@ export const PERMISSION_VOCABULARY: PermissionInfo[] = [
   { key: "helix.bootstrap", product: "helix", description: "Bootstrap a target repository" },
   { key: "helix.manage", product: "helix", description: "Author Helix agents, skills, and workflows" },
   { key: "helix.admin", product: "helix", description: "Administer Helix run history" },
+  { key: "steering.read", product: "steering", description: "View Steering cases and workflow activity" },
+  { key: "steering.decide", product: "steering", description: "Resolve Steering cases" },
+  { key: "steering.notify.prelude", product: "steering", description: "Publish Prelude workflow events" },
+  { key: "steering.notify.helix", product: "steering", description: "Publish Helix workflow events" },
+  { key: "steering.notify.issues", product: "steering", description: "Publish Acme Issues workflow events" },
+  { key: "steering.notify.projects", product: "steering", description: "Publish Acme Projects workflow events" },
+  { key: "prelude.steering.export", product: "prelude", description: "Apply a Steering-authorized Prelude export" },
+  { key: "helix.steering.recover", product: "helix", description: "Apply a Steering-authorized run recovery" },
+  { key: "issues.steering.trigger", product: "issues", description: "Apply a Steering-authorized implementation trigger" },
+  { key: "projects.steering.submit", product: "projects", description: "Apply a Steering-authorized issue submission" },
   { key: "issues.read", product: "issues", description: "View issues and local PRs" },
   { key: "issues.write", product: "issues", description: "Create and edit issues and PRs" },
   { key: "projects.read", product: "projects", description: "View the feature board" },

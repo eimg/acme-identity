@@ -28,6 +28,14 @@ const roleSpecs = [
   { slug: "svc-obs-to-issues", name: "Observability to Issues", permissions: ["issues.read"] },
   { slug: "svc-obs-to-projects", name: "Observability to Projects", permissions: ["projects.read"] },
   { slug: "svc-obs-to-helix", name: "Observability to Helix", permissions: ["helix.read"] },
+  { slug: "svc-prelude-to-steering", name: "Prelude to Steering", permissions: ["steering.notify.prelude"] },
+  { slug: "svc-helix-to-steering", name: "Helix to Steering", permissions: ["steering.notify.helix"] },
+  { slug: "svc-issues-to-steering", name: "Issues to Steering", permissions: ["steering.notify.issues"] },
+  { slug: "svc-projects-to-steering", name: "Projects to Steering", permissions: ["steering.notify.projects"] },
+  { slug: "svc-steering-to-prelude", name: "Steering to Prelude", permissions: ["prelude.steering.export"] },
+  { slug: "svc-steering-to-helix", name: "Steering to Helix", permissions: ["helix.steering.recover"] },
+  { slug: "svc-steering-to-issues", name: "Steering to Issues", permissions: ["issues.steering.trigger"] },
+  { slug: "svc-steering-to-projects", name: "Steering to Projects", permissions: ["projects.steering.submit"] },
 ] as const;
 
 const edgeSpecs = [
@@ -93,6 +101,62 @@ const edgeSpecs = [
     file: resolve(suiteRoot, "acme-obs/.env"),
     key: "ACME_OBS_HELIX_TOKEN",
     extras: {},
+  },
+  {
+    name: "prelude-to-steering",
+    role: "svc-prelude-to-steering",
+    file: resolve(suiteRoot, "prelude/.env"),
+    key: "ACME_STEERING_TOKEN",
+    extras: { ACME_STEERING_URL: "http://127.0.0.1:8323", ACME_TRUSTED_STEERING_ORIGINS: "http://127.0.0.1:8323" },
+  },
+  {
+    name: "helix-to-steering",
+    role: "svc-helix-to-steering",
+    file: resolve(suiteRoot, "acme-todo/.helix/.env"),
+    key: "ACME_STEERING_TOKEN",
+    extras: { ACME_STEERING_URL: "http://127.0.0.1:8323", ACME_TRUSTED_STEERING_ORIGINS: "http://127.0.0.1:8323" },
+  },
+  {
+    name: "issues-to-steering",
+    role: "svc-issues-to-steering",
+    file: resolve(suiteRoot, "acme-issues/.env"),
+    key: "ACME_STEERING_TOKEN",
+    extras: { ACME_STEERING_URL: "http://127.0.0.1:8323", ACME_TRUSTED_STEERING_ORIGINS: "http://127.0.0.1:8323" },
+  },
+  {
+    name: "projects-to-steering",
+    role: "svc-projects-to-steering",
+    file: resolve(suiteRoot, "acme-projects/.env"),
+    key: "ACME_STEERING_TOKEN",
+    extras: { ACME_STEERING_URL: "http://127.0.0.1:8323", ACME_TRUSTED_STEERING_ORIGINS: "http://127.0.0.1:8323" },
+  },
+  {
+    name: "steering-to-prelude",
+    role: "svc-steering-to-prelude",
+    file: resolve(suiteRoot, "acme-steering/.env"),
+    key: "ACME_STEERING_PRELUDE_TOKEN",
+    extras: { ACME_STEERING_PRELUDE_URL: "http://127.0.0.1:8318", ACME_STEERING_TRUSTED_PRELUDE_ORIGINS: "http://127.0.0.1:8318" },
+  },
+  {
+    name: "steering-to-helix",
+    role: "svc-steering-to-helix",
+    file: resolve(suiteRoot, "acme-steering/.env"),
+    key: "ACME_STEERING_HELIX_TOKEN",
+    extras: { ACME_STEERING_HELIX_URL: "http://127.0.0.1:8319", ACME_STEERING_TRUSTED_HELIX_ORIGINS: "http://127.0.0.1:8319" },
+  },
+  {
+    name: "steering-to-issues",
+    role: "svc-steering-to-issues",
+    file: resolve(suiteRoot, "acme-steering/.env"),
+    key: "ACME_STEERING_ISSUES_TOKEN",
+    extras: { ACME_STEERING_ISSUES_URL: "http://127.0.0.1:8320", ACME_STEERING_TRUSTED_ISSUES_ORIGINS: "http://127.0.0.1:8320" },
+  },
+  {
+    name: "steering-to-projects",
+    role: "svc-steering-to-projects",
+    file: resolve(suiteRoot, "acme-steering/.env"),
+    key: "ACME_STEERING_PROJECTS_TOKEN",
+    extras: { ACME_STEERING_PROJECTS_URL: "http://127.0.0.1:8321", ACME_STEERING_TRUSTED_PROJECTS_ORIGINS: "http://127.0.0.1:8321" },
   },
 ] as const;
 

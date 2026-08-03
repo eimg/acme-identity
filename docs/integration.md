@@ -94,10 +94,13 @@ Permissions use `<product>.<action>`, with `<product>.*` for a whole namespace a
 | `prelude.discuss` | Participate in discussions |
 | `prelude.context` | Mark discussion topics include-in-context |
 | `helix.read` / `helix.trigger` / `helix.review` | Helix run and PR-review surfaces |
+| `helix.steering.recover` | Steering-authorized Helix run recovery only |
 | `helix.merge` / `helix.bootstrap` | Helix merge and bootstrap actions |
 | `helix.manage` / `helix.admin` | Helix authoring and administration |
 | `issues.read` / `issues.write` | Acme Issues |
 | `projects.read` / `projects.write` | Acme Projects |
+| `prelude.steering.export` / `issues.steering.trigger` / `projects.steering.submit` | Narrow Steering-to-product action endpoints |
+| `steering.notify.prelude` / `.helix` / `.issues` / `.projects` | Product-bound workflow notification publishing |
 | `primer.ask` | Primer grounded chat (ACL still enforced inside Primer) |
 | `primer.manage` | Primer actors, sources, synchronization, and evaluation |
 | `observability.read` | View suite observations, traces, and source health |
