@@ -2,6 +2,8 @@
 
 Thin local identity layer for the Acme suite: users, manageable roles, sessions, service tokens, and a stable principal contract sibling apps can resolve.
 
+Suite provisioning gives each Steering-to-workflow service role two intentionally separate capabilities: `<product>.steering.receive` records human dispositions, while the existing action-specific permission (`prelude.steering.export`, `helix.steering.recover`, `issues.steering.trigger`, or `projects.steering.submit`) authorizes the one narrow mechanical transition. Receiving a decision never implies permission to apply it.
+
 **Default port:** [http://127.0.0.1:8316](http://127.0.0.1:8316) · **Repo:** [github.com/eimg/acme-identity](https://github.com/eimg/acme-identity)
 
 ## Acme development testbed

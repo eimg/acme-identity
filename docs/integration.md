@@ -99,7 +99,8 @@ Permissions use `<product>.<action>`, with `<product>.*` for a whole namespace a
 | `helix.manage` / `helix.admin` | Helix authoring and administration |
 | `issues.read` / `issues.write` | Acme Issues |
 | `projects.read` / `projects.write` | Acme Projects |
-| `prelude.steering.export` / `issues.steering.trigger` / `projects.steering.submit` | Narrow Steering-to-product action endpoints |
+| `prelude.steering.receive` / `helix.steering.receive` / `issues.steering.receive` / `projects.steering.receive` | Record a Steering disposition without applying a workflow transition |
+| `prelude.steering.export` / `helix.steering.recover` / `issues.steering.trigger` / `projects.steering.submit` | Narrow Steering-to-product action endpoints |
 | `steering.notify.prelude` / `.helix` / `.issues` / `.projects` | Product-bound workflow notification publishing |
 | `primer.ask` | Primer grounded chat (ACL still enforced inside Primer) |
 | `primer.manage` | Primer actors, sources, synchronization, and evaluation |

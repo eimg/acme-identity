@@ -32,10 +32,10 @@ const roleSpecs = [
   { slug: "svc-helix-to-steering", name: "Helix to Steering", permissions: ["steering.notify.helix"] },
   { slug: "svc-issues-to-steering", name: "Issues to Steering", permissions: ["steering.notify.issues"] },
   { slug: "svc-projects-to-steering", name: "Projects to Steering", permissions: ["steering.notify.projects"] },
-  { slug: "svc-steering-to-prelude", name: "Steering to Prelude", permissions: ["prelude.steering.export"] },
-  { slug: "svc-steering-to-helix", name: "Steering to Helix", permissions: ["helix.steering.recover"] },
-  { slug: "svc-steering-to-issues", name: "Steering to Issues", permissions: ["issues.steering.trigger"] },
-  { slug: "svc-steering-to-projects", name: "Steering to Projects", permissions: ["projects.steering.submit"] },
+  { slug: "svc-steering-to-prelude", name: "Steering to Prelude", permissions: ["prelude.steering.export", "prelude.steering.receive"] },
+  { slug: "svc-steering-to-helix", name: "Steering to Helix", permissions: ["helix.steering.recover", "helix.steering.receive"] },
+  { slug: "svc-steering-to-issues", name: "Steering to Issues", permissions: ["issues.steering.trigger", "issues.steering.receive"] },
+  { slug: "svc-steering-to-projects", name: "Steering to Projects", permissions: ["projects.steering.submit", "projects.steering.receive"] },
 ] as const;
 
 const edgeSpecs = [
