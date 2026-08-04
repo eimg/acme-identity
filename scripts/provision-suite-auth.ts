@@ -13,6 +13,8 @@ import {
 
 const identityRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const suiteRoot = resolve(identityRoot, "..");
+/** Helix edges write into the reference Todo target's .helix/.env — copy to other targets as needed. */
+const helixTargetEnv = resolve(suiteRoot, "acme-todo/.helix/.env");
 const validityDays = Number(process.env.ACME_SERVICE_TOKEN_DAYS ?? 90);
 if (!Number.isInteger(validityDays) || validityDays < 1 || validityDays > 365) {
   throw new Error("ACME_SERVICE_TOKEN_DAYS must be an integer from 1 to 365");
@@ -67,14 +69,14 @@ const edgeSpecs = [
   {
     name: "helix-to-issues",
     role: "svc-helix-to-issues",
-    file: resolve(suiteRoot, "acme-todo/.helix/.env"),
+    file: helixTargetEnv,
     key: "HELIX_ISSUES_TOKEN",
     extras: { HELIX_TRUSTED_ISSUES_ORIGINS: "http://127.0.0.1:8320" },
   },
   {
     name: "helix-to-prelude",
     role: "svc-helix-to-prelude",
-    file: resolve(suiteRoot, "acme-todo/.helix/.env"),
+    file: helixTargetEnv,
     key: "HELIX_PRELUDE_TOKEN",
     extras: { HELIX_TRUSTED_PRELUDE_ORIGINS: "http://127.0.0.1:8318" },
   },
@@ -116,7 +118,7 @@ const edgeSpecs = [
   {
     name: "helix-to-steering",
     role: "svc-helix-to-steering",
-    file: resolve(suiteRoot, "acme-todo/.helix/.env"),
+    file: helixTargetEnv,
     key: "ACME_STEERING_TOKEN",
     extras: { ACME_STEERING_URL: "http://127.0.0.1:8323", ACME_TRUSTED_STEERING_ORIGINS: "http://127.0.0.1:8323" },
   },

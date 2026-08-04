@@ -1,13 +1,14 @@
 # Integrating sibling apps with Acme Identity
 
-**Status:** Acme Identity and the optional consumer adapters are shipped across Prelude, Helix, Acme Issues, Acme Projects, and Primer. Each product remains independently runnable with its standalone/off adapter.
+**Status:** Acme Identity and consumer adapters are shipped across Prelude, Helix, Acme Issues, Acme Projects, and Primer. Each product remains independently runnable with its standalone/off adapter. Suite operators should also read the root README **Suite authentication glossary** (`ACME_AUTH_MODE` vs `*_AUTH_PROVIDER`).
 
 ## Suite placement
 
 ```text
-Identity (this repo)     who is acting / suite roles
-Workflow                 Prelude → Helix → Issues → Projects
-Knowledge                Primer (cross-cutting; absorbs state later)
+Identity (this repo)     who is acting / suite roles / scoped service tokens
+New-project path         Primer (optional evidence) → Prelude → Helix bootstrap
+Existing-project path    Projects → Issues → Helix → human merge
+Knowledge                Primer (cross-cutting; separate from the Issues → Helix loop)
 ```
 
 Workflow apps must **not** depend on Primer for login. Primer consumes identity like everyone else.
@@ -19,9 +20,20 @@ Workflow apps must **not** depend on Primer for login. Primer consumes identity 
 | `off` | requires `ACME_ALLOW_INSECURE=1` or test/dev | `ACME_AUTH_MODE=off` (unset) | Feature tests, local work without sign-in |
 | `local` | yes for identity server | set explicitly | Multi-user / role enforcement |
 
+Primer, Prelude, and Helix map the same suite choice through `*_AUTH_PROVIDER=standalone|acme-identity` (plain HTTP to Identity). Issues, Projects, Observability, Steering, and Intel use `ACME_AUTH_MODE` with the Identity client package or equivalent resolver. Keep mode and provider aligned across the suite.
+
 In **`off`**, an anonymous caller is treated as admin (`kind: "dev"`, `sub: "dev:admin"`). The consumer helper answers this **without a network call**, so a sibling app's feature tests never need identity running. A caller that presents a real credential is still resolved against identity, so role behaviour can be exercised in either mode.
 
 ## Consumer integration pattern
+
+Two shipped patterns exist today:
+
+1. **Plain-HTTP adapter** (`*_AUTH_PROVIDER`) — Primer, Prelude, Helix. Prefer this when the product must stay independently clonable without a sibling Identity checkout.
+2. **`acme-identity` package** — Issues, Projects, and several `acme-*` services. Convenient inside the suite checkout (`file:../acme-identity`).
+
+For new adapters, prefer the HTTP pattern unless you already share the suite layout. Unifying Issues/Projects onto HTTP remains open suite work.
+
+Current package-oriented steps:
 
 1. Add dependency on `acme-identity` (path, npm link, or copy `src/client.ts` patterns).
 2. Resolve principal once per request via `resolvePrincipal()`.
