@@ -20,7 +20,7 @@ Workflow apps must **not** depend on Primer for login. Primer consumes identity 
 | `off` | requires `ACME_ALLOW_INSECURE=1` or test/dev | `ACME_AUTH_MODE=off` (unset) | Feature tests, local work without sign-in |
 | `local` | yes for identity server | set explicitly | Multi-user / role enforcement |
 
-Primer, Prelude, and Helix map the same suite choice through `*_AUTH_PROVIDER=standalone|acme-identity` (plain HTTP to Identity). Issues, Projects, Observability, Steering, and Intel use `ACME_AUTH_MODE` with the Identity client package or equivalent resolver. Keep mode and provider aligned across the suite.
+Primer, Prelude, and Helix map the same suite choice through `*_AUTH_PROVIDER=standalone|acme-identity` (plain HTTP to Identity). Issues and Projects use `ACME_AUTH_MODE` with the same plain-HTTP Identity adapter. Observability, Steering, and Intel still use `ACME_AUTH_MODE` with the Identity client package. Keep mode and provider aligned across the suite.
 
 In **`off`**, an anonymous caller is treated as admin (`kind: "dev"`, `sub: "dev:admin"`). The consumer helper answers this **without a network call**, so a sibling app's feature tests never need identity running. A caller that presents a real credential is still resolved against identity, so role behaviour can be exercised in either mode.
 
@@ -28,18 +28,22 @@ In **`off`**, an anonymous caller is treated as admin (`kind: "dev"`, `sub: "dev
 
 Two shipped patterns exist today:
 
-1. **Plain-HTTP adapter** (`*_AUTH_PROVIDER`) — Primer, Prelude, Helix. Prefer this when the product must stay independently clonable without a sibling Identity checkout.
-2. **`acme-identity` package** — Issues, Projects, and several `acme-*` services. Convenient inside the suite checkout (`file:../acme-identity`).
+1. **Plain-HTTP adapter** (`*_AUTH_PROVIDER` or `ACME_AUTH_MODE` + `ACME_IDENTITY_URL`) — Primer, Prelude, Helix, **Acme Issues**, and **Acme Projects**. Prefer this when the product must stay independently clonable without a sibling Identity checkout.
+2. **`acme-identity` package** — Observability, Steering, and Intel still use the package resolver inside the suite checkout (`file:../acme-identity`). Migrating those remains open suite work.
 
-For new adapters, prefer the HTTP pattern unless you already share the suite layout. Unifying Issues/Projects onto HTTP remains open suite work.
+For new adapters, prefer the HTTP pattern.
 
-Current package-oriented steps:
+Current package-oriented steps (for remaining package consumers):
 
 1. Add dependency on `acme-identity` (path, npm link, or copy `src/client.ts` patterns).
 2. Resolve principal once per request via `resolvePrincipal()`.
 3. Attach principal to `res.locals` (or equivalent).
 4. Gate routes with **permissions** using the exported matchers — do not reimplement matching.
 5. Keep existing tests on `ACME_AUTH_MODE=off`; add a separate auth test file for `local`.
+
+HTTP-adapter consumers own a local `hasPermission` matcher and call Identity
+`GET /api/principal` plus session proxy endpoints over plain HTTP (see Helix
+`src/server/auth.ts` or Issues/Projects `src/auth.ts`).
 
 ```ts
 import {
