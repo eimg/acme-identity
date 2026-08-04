@@ -36,6 +36,10 @@ const roleSpecs = [
   { slug: "svc-steering-to-helix", name: "Steering to Helix", permissions: ["helix.steering.recover", "helix.steering.receive"] },
   { slug: "svc-steering-to-issues", name: "Steering to Issues", permissions: ["issues.steering.trigger", "issues.steering.receive"] },
   { slug: "svc-steering-to-projects", name: "Steering to Projects", permissions: ["projects.steering.submit", "projects.steering.receive"] },
+  { slug: "svc-intel-to-obs", name: "Intel to Observability", permissions: ["observability.read"] },
+  { slug: "svc-intel-to-issues", name: "Intel to Issues", permissions: ["issues.read"] },
+  { slug: "svc-intel-to-helix", name: "Intel to Helix", permissions: ["helix.read"] },
+  { slug: "svc-intel-to-steering", name: "Intel to Steering", permissions: ["steering.read"] },
 ] as const;
 
 const edgeSpecs = [
@@ -157,6 +161,34 @@ const edgeSpecs = [
     file: resolve(suiteRoot, "acme-steering/.env"),
     key: "ACME_STEERING_PROJECTS_TOKEN",
     extras: { ACME_STEERING_PROJECTS_URL: "http://127.0.0.1:8321", ACME_STEERING_TRUSTED_PROJECTS_ORIGINS: "http://127.0.0.1:8321" },
+  },
+  {
+    name: "intel-to-obs",
+    role: "svc-intel-to-obs",
+    file: resolve(suiteRoot, "acme-intel/.env"),
+    key: "ACME_INTEL_OBS_TOKEN",
+    extras: { ACME_INTEL_OBS_URL: "http://127.0.0.1:8322", ACME_INTEL_TRUSTED_OBS_ORIGINS: "http://127.0.0.1:8322" },
+  },
+  {
+    name: "intel-to-issues",
+    role: "svc-intel-to-issues",
+    file: resolve(suiteRoot, "acme-intel/.env"),
+    key: "ACME_INTEL_ISSUES_TOKEN",
+    extras: { ACME_INTEL_ISSUES_URL: "http://127.0.0.1:8320", ACME_INTEL_TRUSTED_ISSUES_ORIGINS: "http://127.0.0.1:8320" },
+  },
+  {
+    name: "intel-to-helix",
+    role: "svc-intel-to-helix",
+    file: resolve(suiteRoot, "acme-intel/.env"),
+    key: "ACME_INTEL_HELIX_TOKEN",
+    extras: { ACME_INTEL_HELIX_URL: "http://127.0.0.1:8319", ACME_INTEL_TRUSTED_HELIX_ORIGINS: "http://127.0.0.1:8319" },
+  },
+  {
+    name: "intel-to-steering",
+    role: "svc-intel-to-steering",
+    file: resolve(suiteRoot, "acme-intel/.env"),
+    key: "ACME_INTEL_STEERING_TOKEN",
+    extras: { ACME_INTEL_STEERING_URL: "http://127.0.0.1:8323", ACME_INTEL_TRUSTED_STEERING_ORIGINS: "http://127.0.0.1:8323" },
   },
 ] as const;
 
