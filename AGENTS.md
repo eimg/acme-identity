@@ -18,12 +18,14 @@ Treat the Acme suite as an executable reference architecture, not a universal pl
 | Acme Projects | `~/Desktop/acme/acme-projects` | Feature board; consumer of identity |
 | Acme Observability | `~/Desktop/acme/acme-obs` | Privileged operational projection; consumer of identity |
 | Acme Steering | `~/Desktop/acme/acme-steering` | Decision inbox and delegation-policy coordinator; consumer of identity and scoped service principals |
+| Acme Intel | `~/Desktop/acme/acme-intel` | Think-lab for studying suite experience; consumer of identity (admin-operated human access for now) |
 
 ## Product boundaries
 
 - Own **suite identity** (who is acting) and **suite roles** (admin / operator / member / viewer + custom).
 - Do **not** own Primer evidence ACL / groups, Issues project membership rules, or Helix run policy — those stay in each product using the principal.
 - Do **not** own Steering policy, cases, risk classification, or workflow decisions. Identity authenticates actors and service edges only.
+- Do **not** own Intel study runs, findings, or publish paths. Identity authenticates Intel operators; Intel keeps domain authorization on `intel.*`.
 - Keep a stable principal port (`sub`, `iss`, `roles`, `permissions`, `kind`, `authMode`) so a future OIDC adapter can replace the local login adapter. Contract changes are **additive only**.
 - Support `ACME_AUTH_MODE=off` so sibling feature tests default to an admin principal without credentials.
 - Machine edges use narrowly scoped service tokens (Bearer), not browser cookies. Calling products must bind those credentials to configured trusted destination origins; Identity owns principals and token lifecycle, not integration routing.

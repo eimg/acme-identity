@@ -81,6 +81,10 @@ describe("acme-identity API", () => {
     assert.ok(keys.includes("observability.read"));
     assert.ok(keys.includes("observability.collect"));
     assert.ok(keys.includes("observability.manage"));
+    assert.ok(keys.includes("intel.read"));
+    assert.ok(keys.includes("intel.study"));
+    assert.ok(keys.includes("intel.review"));
+    assert.ok(keys.includes("intel.manage"));
   });
 
   it("resolves anonymous callers as admin when mode=off", async () => {

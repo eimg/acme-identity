@@ -22,6 +22,7 @@ Acme Identity is a cross-cutting service. Workflow and knowledge apps consume it
 | **[Primer](https://github.com/eimg/primer)** | Knowledge product; Identity gates operations while groups/ACL stay in Primer |
 | **Acme Observability** | Privileged read-only operational projection |
 | **[Acme Steering](https://github.com/eimg/acme-steering)** | Decision inbox and delegation policy; Identity supplies human permissions and product-bound service principals, not workflow authority |
+| **[Acme Intel](https://github.com/eimg/acme-intel)** | Optional think-lab; Identity supplies human sessions; Intel permissions are admin-operated for now |
 
 See [`docs/integration.md`](./docs/integration.md) for consumer wiring and the current integration map.
 
